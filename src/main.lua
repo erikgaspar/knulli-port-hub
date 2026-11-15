@@ -49,7 +49,7 @@ local App = {
 }
 _G.App = App
 
-local SCREEN_NAMES = { "disclaimer", "menu", "store", "categories", "details", "about", "settings", "files", "sections", "search", "downloads", "news", "console", "ftp", "ftp_activity", "ftp_help", "textinput", "sdanalyzer", "integrity", "netdiag", "update", "themes", "sdcheck", "esthemes", "splash", "language", "settings_cat", "tester", "consoleid", "wifi", "wifi_connect", "r36control", "sdmaint", "sdmaint_run", "compat", "datetime", "tzpicker", "datetime_edit", "pmmanager", "streamrec", "recordings", "updmgr", "upd_local", "upd_pkg", "upd_history", "upd_backups", "upd_notes", "bios", "bios_list", "bios_pkg", "bios_hist", "folderpick", "battery", "infolist", "library", "library_games", "textview" }
+local SCREEN_NAMES = { "disclaimer", "menu", "store", "categories", "details", "about", "settings", "files", "sections", "search", "downloads", "news", "console", "ftp", "ftp_activity", "ftp_help", "textinput", "sdanalyzer", "integrity", "netdiag", "update", "themes", "sdcheck", "esthemes", "splash", "language", "settings_cat", "tester", "consoleid", "wifi", "wifi_connect", "r36control", "sdmaint", "sdmaint_run", "compat", "datetime", "tzpicker", "datetime_edit", "pmmanager", "streamrec", "recordings", "updmgr", "upd_local", "upd_pkg", "upd_history", "upd_backups", "upd_notes", "bios", "bios_list", "bios_pkg", "bios_hist", "folderpick", "battery", "infolist", "library", "library_games", "textview", "padtest" }
 
 ---------------------------------------------------------------------------
 -- Navegacao
@@ -324,12 +324,35 @@ function App.confirm_uninstall(plan)
       or L("A pasta do jogo não foi localizada: só o arquivo .sh será removido.")) .. "\n" .. L("Y: localizar a pasta manualmente.")
   end
   if #plan.evidence > 0 then body = body .. "\n" .. L("Identificado por: ") .. table.concat(plan.evidence, ", ") end
+  -- saves dentro das pastas do port (conf/, saves/, .sav...): oferece backup antes
+  local SB = require("core.savebackup")
+  local dirs = {}
+  for _, n in ipairs(plan.targets) do if plan.is_dir(n) then dirs[#dirs + 1] = n end end
+  local okf, save_items, save_bytes = pcall(SB.find, p, dirs)
+  if not okf then save_items, save_bytes = {}, 0 end
+  if #save_items > 0 then
+    body = body .. "\n" .. string.format(L("Saves encontrados: %d item(ns), %s."), #save_items, U.format_bytes(save_bytes))
+  end
   body = body .. "\n\n" .. L("Essa operação removerá os arquivos selecionados do cartão SD (saves dentro da pasta do jogo também). Não pode ser desfeita.")
     .. "\n\n" .. L("Deseja continuar?")
   local buttons = {
     { label = L("CONFIRMAR"), danger = true, fn = function() Uninstall.start(plan) end },
     { label = L("CANCELAR") },
   }
+  if #save_items > 0 then
+    table.insert(buttons, 1, { label = L("BACKUP DOS SAVES E REMOVER"), fn = function()
+      App.toast(L("Fazendo backup dos saves…"), "info")
+      SB.backup(p, function(ok, res)
+        if ok then
+          App.toast(L("Backup dos saves feito. Removendo o port…"), "ok")
+          Uninstall.start(plan)
+        else
+          App.show_dialog({ title = L("Backup dos saves falhou"), kind = "error",
+            body = tostring(res) .. "\n\n" .. L("Nada foi apagado."), })
+        end
+      end, save_items)
+    end })
+  end
   if plan.missing_dir then
     table.insert(buttons, 2, { label = L("Y: LOCALIZAR PASTA"), key = "y", fn = function() App.pick_port_folder(plan) end })
   end
@@ -517,6 +540,9 @@ end
 local function on_action(act)
   -- FN: print da tela em qualquer situacao (nao interfere em nada)
   if act == "shot" then
+    -- Teste de controles ao vivo: o FN tambem e testado (sem print)
+    local cur = App.current()
+    if cur and cur.no_shot and not App.dialog then if cur.action then cur:action("shot") end return end
     take_screenshot()
     return
   end

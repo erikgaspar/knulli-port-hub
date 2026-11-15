@@ -15,7 +15,7 @@ local CG = {}
 
 CG.COLS = 6
 local CW, CH = 88, 114
-local HERO_H = 112
+local HERO_H = 106
 
 --- esta grade vale para o tema ativo?
 function CG.active() return T.style.list == "grid" end
@@ -68,7 +68,7 @@ function CG.draw(st, o)
     G.text(T.f.small, lines[i] .. ((i == 2 and #lines > 2) and "…" or ""), tx, y + 68 + (i - 1) * 16, T.c.dim)
   end
   -- grade de capas
-  local gy = y + h + 12
+  local gy = y + h + 10
   local rows = math.max(1, math.floor((T.H - 40 - gy + 8) / (CH + 8)))
   local cols = CG.COLS
   local gap = math.floor((T.W - 28 - cols * CW) / (cols - 1))
@@ -82,6 +82,10 @@ function CG.draw(st, o)
     local cx, cy = x0 + c * (CW + gap), gy + r * (CH + 8)
     G.rect(cx + 2, cy + 3, CW, CH, T.c.shadow, 4)
     o.draw_cover(i, cx, cy, CW, CH)
+    if o.is_new and o.is_new(i) then
+      -- selo NOVO no canto da capa
+      G.tag(I18N.tr(require("lib.i18n").L("NOVO")), cx + 4, cy + 4, T.c.accent, T.c.bg0, T.f.pix8)
+    end
     local b = o.badge and o.badge(i)
     if b then
       G.rect(cx + CW - 18, cy + CH - 18, 14, 14, T.c.bg0, 7, 0.85)

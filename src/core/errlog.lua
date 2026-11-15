@@ -136,6 +136,48 @@ function M.report(body)
   return ok and res or nil
 end
 
+--- le no maximo `max` bytes do fim de um arquivo
+local function tail_file(path, max)
+  local f = io.open(path, "rb")
+  if not f then return nil end
+  local size = f:seek("end") or 0
+  if size > max then f:seek("set", size - max) else f:seek("set", 0) end
+  local t = f:read("*a") or ""
+  f:close()
+  return (size > max and "[...]\n" or "") .. t
+end
+
+--- "Reportar problema": junta num UNICO arquivo de texto tudo que ajuda no
+--- suporte (aparelho, sistema, diagnostico, os ultimos erros e problemas e as
+--- ultimas linhas do registro), sem senhas, com no maximo ~200 KB, para o
+--- usuario mandar no grupo do Telegram. Devolve o caminho ou nil.
+function M.problem_report(what, diag_text, sys_text)
+  local ok, res = pcall(function()
+    local d = M.dir()
+    local parts = { header(), string.rep("=", 60) }
+    parts[#parts + 1] = "O QUE ACONTECEU (escolhido pelo usuario): " .. tostring(what or "-")
+    if sys_text and sys_text ~= "" then parts[#parts + 1] = "\nAPARELHO E SISTEMA:\n" .. sys_text end
+    if diag_text and diag_text ~= "" then parts[#parts + 1] = "\nDIAGNOSTICO:\n" .. diag_text end
+    -- ultimos 3 arquivos de erro e o arquivo de problemas mais recente
+    local h = io.popen("cd " .. shq(d) .. " 2>/dev/null && ls -1t erro_*.txt 2>/dev/null | head -n 3; ls -1t problemas_*.txt 2>/dev/null | head -n 1")
+    local names = h and h:read("*a") or ""
+    if h then h:close() end
+    for name in names:gmatch("[^\n]+") do
+      local t = tail_file(d .. "/" .. name, 30 * 1024)
+      if t then parts[#parts + 1] = "\n" .. string.rep("-", 60) .. "\n" .. name .. ":\n" .. t end
+    end
+    parts[#parts + 1] = "\n" .. string.rep("-", 60) .. "\nULTIMAS LINHAS DO REGISTRO DO APP:\n" .. table.concat(M.ring, "\n")
+    local text = scrub(table.concat(parts, "\n"))
+    if #text > 200 * 1024 then text = text:sub(1, 200 * 1024) .. "\n[cortado]\n" end
+    local path = d .. "/reportar_problema_" .. os.date("%Y%m%d_%H%M%S") .. ".txt"
+    if write(path, text) then
+      os.execute("cd " .. shq(d) .. " 2>/dev/null && ls -1t reportar_problema_*.txt 2>/dev/null | tail -n +6 | while read -r f; do rm -f -- \"$f\"; done")
+      return path
+    end
+  end)
+  return ok and res or nil
+end
+
 --- quantos arquivos de erro existem (para mostrar nas Configuracoes)
 function M.count()
   local h = io.popen("ls -1 " .. shq(M.dir()) .. " 2>/dev/null | grep -cE '^(erro_|problemas_).*\\.txt$'")

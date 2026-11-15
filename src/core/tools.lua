@@ -18,7 +18,7 @@ T.LIST = {
   { id = "hub_tool_esthemes", name = L("Loja de Temas"), screen = "esthemes", icon = "ferramentas_de_sistema",
     category = L("Ferramentas de sistema"), category_id = "ferramentas_de_sistema",
     short = L("Temas do EmulationStation compatíveis com o sistema do console: visualizar, baixar, instalar e desinstalar.") },
-  { id = "hub_tool_analog", name = "R36S Analog Tester", screen = "tester", icon = "testes_de_controles",
+  { id = "hub_tool_analog", name = "R36S Analog Tester", screen = "padtest", icon = "testes_de_controles",
     category = L("Testes de controles"), category_id = "testes_de_controles", test_type = "completo",
     short = L("Teste dos dois analógicos (alcance, zona morta, deriva) e de todos os botões, com relatório. Por LagdoLira.") },
 }

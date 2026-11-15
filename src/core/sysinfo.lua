@@ -52,6 +52,13 @@ function I.collect()
   r.arch = nz(first_line(U.capture("uname -m 2>/dev/null")))
   local model = U.read_file("/proc/device-tree/model")
   r.model = nz(model and U.trim((model:gsub("%z", ""))) or nil)
+  -- aparelho detectado (base de placas do Analisador de Console)
+  local hw = (U.read_file("/proc/cpuinfo") or ""):match("\nHardware%s*:%s*([^\n]+)")
+  local ok, det = pcall(require("core.consoleid").quick_detect, model and (model:gsub("%z", "")) or nil, hw)
+  r.device = ok and det or nil
+  -- tela real (o hub desenha em 640x480)
+  local okw, dw, dh = pcall(love.window.getDesktopDimensions)
+  r.screen = (okw and dw and dw > 0) and string.format("%dx%d", dw, dh) or nil
   local cores = tonumber(first_line(U.capture("nproc 2>/dev/null")))
   r.cores = cores and tostring(cores) or NA
   local up = tonumber((U.read_file("/proc/uptime") or ""):match("^(%d+)"))

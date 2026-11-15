@@ -678,7 +678,7 @@ function X.storage_category()
         rows[#rows + 1] = { kind = "info", label = L("Cartão SD"), desc = L("O sistema não informou o espaço do cartão."),
           value = function() return SysInfo.NA end }
       end
-      rows[#rows + 1] = { kind = "info", label = L("Memória RAM"), desc = L("Memória livre para uso agora e o total do console."),
+      rows[#rows + 1] = { kind = "info", label = L("Memória RAM"), desc = L("Memória livre para uso agora e o total visível no sistema. Num R36S de 1 GB o total aparece como cerca de 975 MB: o kernel e a GPU reservam o resto."),
         value = function()
           local m = info.mem
           return (m and m.ok) and string.format(I18N.tr(L("%s livres de %s")), U.format_bytes(m.avail), U.format_bytes(m.total)) or SysInfo.NA
@@ -788,6 +788,119 @@ local function errlog_open()
   App.push("textview", { title = L("Registro de erros"), files = files, idx = 1 })
 end
 
+-- Saves dos ports instalados: backup (A) e restaurar o mais recente (X)
+local function saves_screen()
+  local SB = require("core.savebackup")
+  local Catalog = require("core.catalog")
+  local Manifest = require("core.manifest")
+  local function build(scr)
+    local items = {}
+    for id in pairs(Manifest.data or {}) do
+      local p = Catalog.by_id[id]
+      if p and not p.builtin and App.status(p) ~= "none" then
+        local found, bytes = SB.find(p)
+        local bk = SB.list(p)
+        local sub
+        if #found == 0 then sub = I18N.tr(L("nenhum save encontrado na pasta do port"))
+        else sub = string.format(I18N.tr(L("%d item(ns) de save, %s")), #found, U.format_bytes(bytes)) end
+        sub = sub .. "  •  " .. (bk[1] and (I18N.tr(L("último backup: ")) .. bk[1].date) or I18N.tr(L("sem backup")))
+        items[#items + 1] = { port = p, found = found, bytes = bytes, backups = bk,
+          tag = bk[1] and L("BACKUP") or (#found > 0 and L("SAVES") or "—"),
+          tagc = bk[1] and T.c.green or (#found > 0 and T.c.yellow or T.c.faint),
+          text = p.name, sub = sub }
+      end
+    end
+    table.sort(items, function(a, b) return a.text:lower() < b.text:lower() end)
+    scr.items = items
+  end
+  infolist({ title = L("Saves dos ports"), sub = L("Pasta: ") .. SB.root(), load = build,
+    empty = L("Nenhum port instalado pelo hub."),
+    keys = {
+      { key = "a", label = L("Fazer backup"), fn = function(scr, it)
+        if not it then return end
+        if #it.found == 0 then App.toast(L("Nenhum save encontrado na pasta deste port."), "warn"); return end
+        local function go()
+          App.toast(L("Fazendo backup dos saves…"), "info")
+          SB.backup(it.port, function(ok, res, n)
+            if ok then
+              App.toast(string.format(I18N.tr(L("Backup feito: %d item(ns).")), n), "ok")
+              build(scr)
+            else
+              App.show_dialog({ title = L("Backup dos saves falhou"), kind = "error", body = tostring(res) })
+            end
+          end, it.found)
+        end
+        if it.bytes > SB.MAX_BYTES then
+          App.show_dialog({ title = L("Backup grande"), kind = "warn",
+            body = string.format(I18N.tr(L("Os saves deste port ocupam %s. O backup vai ocupar espaço parecido no cartão. Continuar?")), U.format_bytes(it.bytes)),
+            buttons = { { label = L("CONTINUAR"), fn = go }, { label = L("CANCELAR") } } })
+        else go() end
+      end },
+      { key = "x", label = L("Restaurar"), fn = function(scr, it)
+        if not it then return end
+        local bk = it.backups[1]
+        if not bk then App.toast(L("Este port ainda não tem backup de saves."), "warn"); return end
+        App.show_dialog({ title = L("Restaurar saves?"), kind = "warn",
+          body = it.port.name .. "\n" .. L("Backup de ") .. bk.date
+            .. L("\n\nOs saves atuais com o mesmo nome serão substituídos pelos do backup. Feche o jogo antes."),
+          buttons = {
+            { label = L("RESTAURAR"), danger = true, fn = function()
+              SB.restore(it.port, bk.path, function(ok, err)
+                if ok then App.toast(L("Saves restaurados."), "ok"); build(scr)
+                else App.show_dialog({ title = L("Não foi possível restaurar"), kind = "error", body = tostring(err) }) end
+              end)
+            end },
+            { label = L("CANCELAR") },
+          } })
+      end },
+      { key = "y", label = L("Atualizar"), fn = function(scr) build(scr) end },
+    } })
+end
+X.saves_screen = saves_screen
+
+-- "Reportar problema": um arquivo de texto unico para mandar no Telegram
+local function report_problem()
+  local function make(what)
+    App.toast(L("Juntando as informações…"), "info")
+    local SysInfo = require("core.sysinfo")
+    local okr, r = pcall(SysInfo.collect)
+    local sys = {}
+    if okr and r then
+      local d = r.device
+      sys[#sys + 1] = "Aparelho: " .. (d and ((d.name or "?") .. (d.board and ("  |  placa " .. d.board) or "") .. "  |  " .. tostring(d.kind)) or tostring(r.model))
+      sys[#sys + 1] = "Sistema: " .. tostring(r.os) .. "  |  Kernel: " .. tostring(r.kernel) .. "  |  " .. tostring(r.arch)
+      sys[#sys + 1] = "Tela: " .. tostring(r.screen or "?") .. "  |  Nucleos: " .. tostring(r.cores)
+      if r.mem and r.mem.ok then
+        sys[#sys + 1] = string.format("RAM: %d MB visiveis, %d MB disponiveis", math.floor(r.mem.total / 1048576 + 0.5), math.floor(r.mem.avail / 1048576 + 0.5))
+      end
+      for _, st in ipairs(r.storage or {}) do
+        if st.ok then sys[#sys + 1] = string.format("%s: %s livres de %s", st.label, U.format_bytes(st.free), U.format_bytes(st.total)) end
+      end
+      sys[#sys + 1] = "PortMaster: " .. (r.pm.installed and ((r.pm.version or "?") .. " em " .. tostring(r.pm.path)) or "nao encontrado")
+    end
+    local Diag = require("core.diag")
+    local okd, list = pcall(Diag.run)
+    local path = require("core.errlog").problem_report(what, okd and Diag.text(list) or nil, table.concat(sys, "\n"))
+    if path then
+      App.show_dialog({ title = L("Relatório pronto!"), kind = "ok",
+        body = L("Arquivo salvo em:\n") .. path
+          .. L("\n\nMande esse arquivo no grupo do Telegram junto com uma descrição do que aconteceu. Para tirar o arquivo do console: FTP (Configurações > Rede e conectividade), Gerenciador de arquivos ou o cartão SD no PC.\n\nSenhas não entram no relatório.") })
+    else
+      App.show_dialog({ title = L("Não foi possível criar o relatório"), kind = "error", body = L("Não foi possível gravar o relatório na pasta logs.") })
+    end
+  end
+  App.show_dialog({
+    title = L("Reportar problema"), kind = "info",
+    body = L("O hub vai juntar num arquivo só as informações do aparelho, o diagnóstico e os últimos erros registrados, para você mandar no grupo do Telegram.\n\nO que aconteceu?"),
+    buttons = {
+      { label = L("DOWNLOAD/INSTALAÇÃO"), fn = function() make("download ou instalacao") end },
+      { label = L("TRAVOU/FECHOU"), fn = function() make("o hub travou ou fechou") end },
+      { label = L("OUTRO"), fn = function() make("outro problema") end },
+    },
+  })
+end
+X.report_problem = report_problem
+
 local function run_diag()
   local Diag = require("core.diag")
   local last
@@ -825,6 +938,9 @@ function X.diag_category()
       return n == 0 and I18N.tr(L("nenhum erro registrado")) or string.format(I18N.tr(L("%d arquivo(s) de erro")), n)
     end,
     rows = {
+      { kind = "action", label = L("Reportar problema"), icon = "set_diag",
+        desc = L("Junta num arquivo só as informações do aparelho, o diagnóstico e os últimos erros, sem senhas, para mandar no grupo do Telegram."),
+        on_a = report_problem },
       { kind = "action", label = L("Executar diagnóstico"),
         desc = L("Verifica catálogo, downloads, ports instalados, FTP, atualizações, ferramentas do sistema e registros. X exporta um relatório para o suporte."),
         on_a = run_diag },

@@ -93,7 +93,7 @@ function S:build_lines()
     local ok, no = L("identificado"), L("não identificado")
     local proc = info.soc and (info.soc:upper() .. (info.cpu and ("  •  " .. info.cpu) or "")) or info.cpu
     kv(L("Processador"), proc or no, info.soc and T.c.green or (proc and T.c.yellow or T.c.red))
-    kv(L("Memória RAM"), info.mem_kb and U.format_bytes(info.mem_kb * 1024) or no, info.mem_kb and T.c.green or T.c.red)
+    kv(L("Memória RAM"), require("core.consoleid").ram_label(info.mem_kb) or no, info.mem_kb and T.c.green or T.c.red)
     kv(L("Placa"), r.board and (r.board .. "  •  " .. L("na base")) or (info.model and (info.model .. "  •  " .. L("fora da base")) or no),
       r.board and T.c.green or (info.model and T.c.yellow or T.c.red))
     kv(L("Painel de tela"), info.panel_sha1 and (r.panel_known and L("assinatura conhecida") or L("assinatura fora da base")) or no,

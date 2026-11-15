@@ -341,7 +341,11 @@ local controls = {
   resume = function(scr) scr.rep_text = U.read_file(C.APP_DIR .. "/tools/r36s_analog_tester/relatorio_controles.txt") end,
   rows = {
     { kind = "action", label = L("Testar analógicos e botões"),
-      desc = L("Abre o R36S Analog Tester (por LagdoLira): analógicos, zona morta, deriva e todos os botões. O hub fecha durante o teste e volta sozinho quando você sair."),
+      desc = L("Abre na hora o desenho do controle: cada botão acende quando apertado, os analógicos mostram posição, alcance e deriva. Segure SELECT + START para voltar."),
+      value = function() return L("ao vivo") end,
+      on_a = function() App.push("padtest", { from = "settings" }) end },
+    { kind = "action", label = L("Teste completo com relatório"),
+      desc = L("Abre o R36S Analog Tester (por LagdoLira): analógicos, zona morta, deriva e todos os botões, com relatório salvo. O hub fecha durante o teste e volta sozinho quando você sair."),
       value = function() return "R36S Analog Tester" end,
       on_a = function() App.push("tester", { from = "settings" }) end },
     { kind = "info", label = L("Último relatório"), desc = L("Resultado salvo pelo R36S Analog Tester na última vez que você voltou ao menu dele."),
@@ -478,6 +482,9 @@ local backup = {
         get = function() return scr.bsel[g.id] == true end,
         set = function(v) scr.bsel[g.id] = v or nil; Backup.set_selected(scr.bsel) end }
     end
+    rows[#rows + 1] = { kind = "action", label = L("Saves dos ports"),
+      desc = L("Backup e restauração dos saves dos ports instalados (pastas conf, saves, savedata e arquivos .sav dentro da pasta do jogo)."),
+      on_a = function() require("ui.settings_extra").saves_screen() end }
     rows[#rows + 1] = { kind = "action", label = L("Fazer backup agora"),
       desc = L("Copia os itens marcados acima. Os ports instalados e os arquivos dos jogos não entram no backup."),
       on_a = function()

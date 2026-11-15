@@ -17,6 +17,7 @@ R.BADGE = {
   installed = { L("INSTALADO"), T.c.green },
   update = { L("ATUALIZAR"), T.c.yellow },
 }
+R.NEW = { L("NOVO"), T.c.accent }
 
 --- texto secundario: categoria (+ tipo de teste) e tamanho
 function R.subtitle(p)
@@ -44,6 +45,8 @@ function R.draw(p, x, y, w, h, on, accent, extra)
     G.cover(Covers.get(p), p, x + 8, y + 4, 29, h - 8, false, App.t)
     st = App.status(p)
     badge = R.BADGE[st]
+    -- selo NOVO (adicionado ha poucos dias ao catalogo), so se ainda nao instalado
+    if not badge and require("core.catalog").is_new(p) then badge = R.NEW end
   end
   local fav = not p.builtin and Favorites.is(p)
   local rightw = 0

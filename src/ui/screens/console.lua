@@ -73,8 +73,12 @@ function S:draw()
   section(L("Sistema"), 12, 248, T.W - 24, 188, T.c.accent)
   local sx, sy = 24, 270
   row(L("Sistema"), r.os, sx, sy, T.W - 48)
-  row(L("Dispositivo"), r.model, sx, sy + 20, T.W - 48)
-  row(L("Arquitetura"), r.arch, sx, sy + 40, T.W - 48)
+  row(L("Aparelho"), S.device_label(r), sx, sy + 20, T.W - 48)
+  row(L("Arquitetura"), r.arch, sx, sy + 40, 296)
+  -- tela: o hub foi feito para 640x480; avisa quando o aparelho usa outra
+  local scr = r.screen or NA
+  if r.screen and r.screen ~= "640x480" then scr = scr .. L("  (o hub usa 640x480)") end
+  row(L("Tela"), scr, 330, sy + 40, T.W - 24 - 330)
   row(L("Kernel"), r.kernel, sx, sy + 60, 296)
   row(L("Núcleos CPU"), r.cores, sx, sy + 80, 296)
   row(L("Ligado há"), r.uptime, sx, sy + 100, 296)
@@ -93,6 +97,17 @@ function S:draw()
     row(L("Runtimes"), table.concat(shown, ", ") .. (#rts > 4 and string.format(L(" … e mais %d"), #rts - 4) or ""), sx, sy + 124, T.W - 48)
   end
   G.hints({ { "y", L("Atualizar dados") }, { "b", L("Voltar") } })
+end
+
+local KIND = { r36s = "", clone = L("  •  clone catalogado"), variant = L("  •  variante"), other = "" }
+--- "R36S  •  placa R36S-V21 2024-12-18 2550" ou o nome lido do sistema
+function S.device_label(r)
+  local d = r.device
+  if not d then return r.model end
+  if d.known then
+    return d.name .. (KIND[d.kind] or "") .. L("  •  placa ") .. (d.board or "?")
+  end
+  return d.name .. L("  (placa fora da base do hub)")
 end
 
 function S:action(act)

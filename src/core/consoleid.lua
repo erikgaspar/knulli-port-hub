@@ -51,11 +51,30 @@ local function has(list, v)
   return false
 end
 
---- faixa de RAM da referencia (1 GB = ~ 900 a 1100 MB visiveis no Linux)
-local function ram_ok(mem_kb, ref_mb)
-  if not mem_kb or not ref_mb then return nil end
+--- RAM visivel no Linux. O R36S tem 1 GB fisico (2 chips), mas o kernel e a
+--- GPU reservam uma parte: o /proc/meminfo mostra cerca de 975 MB, nunca 1024.
+--- A faixa vem da base (reference.ram_visible_mb); sem ela, 90% a 100% do fisico.
+--- Placas de clone aparecem com 896, 640, 512 ou 384 MB.
+local function ram_range(ref)
+  local r = ref and ref.ram_visible_mb
+  if type(r) == "table" and tonumber(r[1]) and tonumber(r[2]) then return tonumber(r[1]), tonumber(r[2]) end
+  if ref and ref.ram_mb then return ref.ram_mb * 0.90, ref.ram_mb end
+end
+M.ram_range = ram_range
+
+local function ram_ok(mem_kb, ref)
+  local lo, hi = ram_range(ref)
+  if not mem_kb or not lo then return nil end
   local mb = mem_kb / 1024
-  return mb > ref_mb * 0.80 and mb <= ref_mb * 1.10
+  return mb >= lo and mb <= hi + 8
+end
+
+--- texto da RAM: o que o sistema mostra e, quando bate com 1 GB, o fisico
+function M.ram_label(mem_kb)
+  if not mem_kb then return nil end
+  local txt = string.format(L("%d MB visíveis no sistema"), math.floor(mem_kb / 1024 + 0.5))
+  if ram_ok(mem_kb, (M.load_db() or {}).reference) then txt = txt .. L(" (1 GB físico)") end
+  return txt
 end
 
 --- Compara e classifica. Devolve o resultado (tabela simples, salva em JSON).
@@ -100,9 +119,9 @@ function M.classify(info)
     if info.cores and ref.cores and info.cores ~= ref.cores then
       r.diffs[#r.diffs + 1] = string.format(L("%d núcleos de CPU; a referência do R36S tem %d."), info.cores, ref.cores)
     end
-    local rk = ram_ok(info.mem_kb, ref.ram_mb)
+    local rk = ram_ok(info.mem_kb, ref)
     if rk == false then
-      r.diffs[#r.diffs + 1] = string.format(L("Memória RAM de cerca de %d MB; a referência do R36S tem 1 GB."), math.floor(info.mem_kb / 1024 + 0.5))
+      r.diffs[#r.diffs + 1] = string.format(L("Memória RAM: %d MB visíveis no sistema; um R36S original (1 GB em 2 chips) mostra cerca de 975 MB."), math.floor(info.mem_kb / 1024 + 0.5))
     end
     if res and ref.resolution and res ~= ref.resolution then
       r.diffs[#r.diffs + 1] = string.format(L("Resolução da tela %s; a referência do R36S é %s."), res, ref.resolution)
@@ -177,7 +196,7 @@ function M.classify(info)
   elseif info.soc == ref.soc then
     check_ref()
     r.class, r.conf = "unknown", "insuficiente"
-    if res == ref.resolution and ram_ok(info.mem_kb, ref.ram_mb) then
+    if res == ref.resolution and ram_ok(info.mem_kb, ref) then
       r.notes[#r.notes + 1] = L("O hardware lido é da mesma família do R36S (RK3326, 640x480), mas a placa e o painel não estão na base.")
     end
   else
@@ -185,6 +204,24 @@ function M.classify(info)
   end
   r.firmware_note = L("O nome do firmware não foi usado para decidir o resultado, nem o texto \"R36S\" no nome do aparelho.")
   return r
+end
+
+-- ---------------------------------------------------------------------------
+--- Deteccao rapida do aparelho (Informacoes do Console): compara o nome da
+--- placa na Device Tree / "Hardware" do /proc/cpuinfo com a base de placas.
+--- Devolve { name, board, kind, known } ou nil se nada foi lido. Igual ao
+--- Analisador: depende do DTB escolhido na instalacao do sistema.
+function M.quick_detect(model, hardware)
+  model = model and U.trim(model) or nil
+  hardware = hardware and U.trim(hardware) or nil
+  if (not model or model == "") and (not hardware or hardware == "") then return nil end
+  for _, b in ipairs(M.load_db().boards or {}) do
+    local m = b.match or {}
+    if m.model and (m.model == model or m.model == hardware) then
+      return { name = b.name, board = b.board, kind = b.kind, known = true }
+    end
+  end
+  return { name = (model ~= "" and model) or hardware, kind = "unknown", known = false }
 end
 
 -- ---------------------------------------------------------------------------
@@ -220,7 +257,7 @@ function M.sections(info)
     { L("SoC"), info.soc and info.soc:upper() or NA() },
     { L("Processador"), v(info.cpu) },
     { L("Núcleos"), info.cores and tostring(info.cores) or NA() },
-    { L("Memória RAM"), info.mem_kb and U.format_bytes(info.mem_kb * 1024) or NA() },
+    { L("Memória RAM"), M.ram_label(info.mem_kb) or NA() },
     { L("GPU"), v(info.gpu) },
   } }
   s[#s + 1] = { title = L("PLACA E COMPONENTES"), rows = {

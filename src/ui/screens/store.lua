@@ -241,7 +241,8 @@ function S:draw_showcase()
     if p.size_label and p.size_label ~= "?" then pills[#pills + 1] = { p.size_label, T.c.line } end
     if (p.version or "") ~= "" then pills[#pills + 1] = { "v" .. p.version, T.c.line } end
     local b = PortRow.BADGE[App.status(p)]
-    if b then tags[#tags + 1] = { b[1], b[2] } end
+    if b then tags[#tags + 1] = { b[1], b[2] }
+    elseif Catalog.is_new(p) then tags[#tags + 1] = { PortRow.NEW[1], PortRow.NEW[2] } end
     if Favorites.is(p) then tags[#tags + 1] = { L("FAVORITO"), T.c.yellow } end
   else
     tags[#tags + 1] = { L("INTEGRADO"), T.c.green }
@@ -298,7 +299,8 @@ function S:draw_grid()
     if p.size_label and p.size_label ~= "?" then pills[#pills + 1] = { p.size_label, T.c.line } end
     if (p.version or "") ~= "" then pills[#pills + 1] = { "v" .. p.version, T.c.line } end
     local b = PortRow.BADGE[App.status(p)]
-    if b then tags[#tags + 1] = { b[1], b[2] } end
+    if b then tags[#tags + 1] = { b[1], b[2] }
+    elseif Catalog.is_new(p) then tags[#tags + 1] = { PortRow.NEW[1], PortRow.NEW[2] } end
     if Favorites.is(p) then tags[#tags + 1] = { L("FAVORITO"), T.c.yellow } end
   else
     tags[#tags + 1] = { L("INTEGRADO"), T.c.green }
@@ -307,6 +309,7 @@ function S:draw_grid()
   CG.draw(self, {
     top = 82, n = #items, sel = self.sel, draw_cover = cover,
     name = p.name, pills = pills, tags = tags, desc = short ~= "" and short or I18N.tr(L("Sem descrição.")),
+    is_new = function(i) return Catalog.is_new(items[i]) and App.status(items[i]) == "none" end,
     badge = function(i)
       local q = items[i]
       if q.builtin then return nil end

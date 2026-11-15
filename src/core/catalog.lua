@@ -346,4 +346,36 @@ function Catalog.filter(filter, status_fn, section)
   return out
 end
 
+-- ---------------------------------------------------------------------------
+-- Selo NOVO: port com "added" (AAAA-MM-DD) nos ultimos NEW_DAYS dias.
+-- A data de referencia e a maior entre a data do console e o "added" mais
+-- novo do catalogo: assim um relogio atrasado (sem internet) nao some com o
+-- selo, e um catalogo antigo nao marca tudo como novo para sempre.
+Catalog.NEW_DAYS = 7
+local function day_num(s)
+  local y, m, d = tostring(s or ""):match("^(%d%d%d%d)%-(%d%d)%-(%d%d)")
+  if not y then return nil end
+  return math.floor(os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12 }) / 86400)
+end
+local new_ref_cache
+local function new_ref()
+  local n, today = #(Catalog.ports or {}), os.date("%Y-%m-%d")
+  local c = new_ref_cache
+  if c and c.n == n and c.day == today and c.ports == Catalog.ports then return c.ref end
+  local ref = day_num(today) or 0
+  for _, p in ipairs(Catalog.ports or {}) do
+    local a = day_num(p.added)
+    if a and a > ref then ref = a end
+  end
+  new_ref_cache = { n = n, day = today, ports = Catalog.ports, ref = ref }
+  return ref
+end
+function Catalog.is_new(p)
+  if not p or p.builtin then return false end
+  local a = day_num(p.added)
+  if not a then return false end
+  local diff = new_ref() - a
+  return diff >= 0 and diff <= Catalog.NEW_DAYS
+end
+
 return Catalog
