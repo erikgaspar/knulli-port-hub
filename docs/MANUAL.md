@@ -16,6 +16,15 @@ Projeto **independente** do KMP: nenhum arquivo do KMP foi alterado ou é necess
 
 **Requisitos:** PortMaster instalado com o runtime **love_11.5** (o mesmo usado pelo KMP — se o KMP abre no seu console, o hub também abre), `curl` ou `wget` e `unzip` (já vêm no dArkOS).
 
+### Aparelhos confirmados
+
+| Aparelho | Situação |
+|---|---|
+| R36S (dArkOSRE) | aparelho principal do projeto |
+| RX6H | funcionando, confirmado por usuário (sistema não informado) |
+
+Testou em outro aparelho? Avise no grupo do Telegram ou no canal Lag do Lira que ele entra na lista.
+
 ## Controles
 
 | Botão | Ação |
@@ -511,12 +520,12 @@ Para quem desenvolve: `tools/make_update.py` gera o manifesto do pacote completo
 
 Configurações → Aparência e personalização → **Tema**. A partir da 0.5.0 o hub tem duas identidades visuais oficiais com a **mesma estrutura de telas, menus, botões e funções**, e o tema original continua disponível:
 
-- **Pastel Pop Edition** (padrão na primeira abertura): visual claro e arredondado inspirado nos menus do 3DS e do Wii U — moldura em degradê azul e roxo, fundo claro pontilhado com formas pastel, cartões brancos com bordas coloridas que "saltam" ao selecionar, barras em pílula e **tela inicial em carrossel**.
+- **Pastel Pop Edition**: visual claro e arredondado inspirado nos menus do 3DS e do Wii U — moldura em degradê azul e roxo, fundo claro pontilhado com formas pastel, cartões brancos com bordas coloridas que "saltam" ao selecionar, barras em pílula e **tela inicial em carrossel**.
 - **Wii Blue Edition**: inspirada no menu de canais do Nintendo Wii — fundo azul profundo, cartões brancos arredondados, ícones azuis, seleção com halo azul e leve aumento do cartão.
-- **Neon Grid Edition**: interface gamer futurista — fundo quase preto com grade em perspectiva, cartões escuros, contorno neon pulsante e cantos de mira na seleção.
+- **Neon Grid Edition**: painel gamer escuro em verde. Tela inicial com o **Guia Rápido** à esquerda (capas dos últimos ports abertos ou instalados e atalhos para Meus Ports, Favoritos e Downloads), o cartão de destaque (**Continuar jogo** com o último port aberto pelo hub, ou o **Em destaque** do catálogo; L1/R1 trocam) e blocos grandes: Central de Conteúdo, Biblioteca, Categorias, Configurações, Sobre o Projeto e Sair. **Y** pesquisa, **X** abre os detalhes do port focado. As listas de ports (Ports de Jogos, Utilitários, Meus Ports, Favoritos) viram uma **grade de capas** com o port escolhido em destaque no alto; direcionais andam pela grade.
 - **Tema Padrão**: o visual original (menu em lista).
 
-**A** aplica na hora, sem reiniciar: todas as telas mudam juntas. A escolha fica salva e volta ao abrir o app. **Restaurar aparência original** volta ao Pastel Pop Edition. Na mesma tela de Aparência, **Temas do EmulationStation** abre a Loja de Temas do EmulationStation. **Baixar novos temas** ficará ativo quando o catálogo de temas no GitHub for configurado. Detalhes em `docs/TEMAS.md`.
+**A** aplica na hora, sem reiniciar: todas as telas mudam juntas. A escolha fica salva e volta ao abrir o app. **Restaurar aparência original** volta ao Tema Padrão. Ao instalar, o hub abre no **Tema Padrão**. Na mesma tela de Aparência, **Temas do EmulationStation** abre a Loja de Temas do EmulationStation. **Baixar novos temas** ficará ativo quando o catálogo de temas no GitHub for configurado. Detalhes em `docs/TEMAS.md`.
 
 ### Tela inicial em carrossel (Pastel Pop)
 
@@ -646,3 +655,12 @@ Dados do app no console: `/roms/ports/r36sporthub/conf/love/r36sporthub/` (cache
 Fontes Press Start 2P, Chakra Petch e Inter (recorte cirílico): SIL Open Font License (em `licenses/`). LÖVE: licença zlib. Os jogos e ports listados pertencem aos seus respectivos autores.
 
 Feito pela comunidade, para a comunidade!
+
+## Novidades da 0.5.2
+
+- **Reportar problema** (Configurações → Diagnóstico e suporte): escolha o que aconteceu e o hub cria um arquivo só, em `r36sporthub/logs/reportar_problema_*.txt`, com as informações do aparelho, o diagnóstico e os últimos erros (sem senhas). Mande esse arquivo no grupo do Telegram.
+- **Selo NOVO** nos ports adicionados ao catálogo nos últimos 7 dias.
+- **Informações do Console** mostram o **aparelho detectado** (modelo e placa) e a **tela** real.
+- **Memória RAM**: num R36S original (1 GB) o sistema mostra cerca de 975 MB; o resto fica reservado pelo kernel e pela GPU. Isso é normal.
+- **Saves dos ports** (Configurações → Backup e restauração): A faz backup dos saves de um port, X restaura o último. Ao remover um port, o hub oferece fazer o backup dos saves antes.
+

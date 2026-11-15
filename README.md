@@ -95,7 +95,7 @@ echo "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub/main/update.
 | 🧩 | **Verificador de compatibilidade** | Compara o que o port pede (arquitetura, sistema, runtimes, tela) com o console. |
 | 🛠️ | **Gerenciar PortMaster** | Instala, atualiza, verifica e repara o PortMaster com a versão estável oficial, com backup e recuperação. |
 | 📚 | **Runtimes** | Confere e atualiza os runtimes do PortMaster (md5 de cada arquivo). |
-| 🎨 | **Temas do hub** | Pastel Pop Edition (padrão, carrossel claro), Wii Blue Edition, Neon Grid Edition e Tema Padrão, trocados na hora. |
+| 🎨 | **Temas do hub** | Tema Padrão (o original, usado ao instalar), Pastel Pop Edition (carrossel claro), Wii Blue Edition e Neon Grid Edition, trocados na hora. |
 | 🖼️ | **Loja de Temas do EmulationStation** | Usa as fontes do ThemeMaster (galeria OGA e coleções do GitHub), escolhe tamanho de tela, reconhece os temas do console e mostra qual está ativo. |
 | 📶 | **Wi-Fi** | Procura redes, conecta, mostra sinal e faz diagnóstico de rede e teste de velocidade. |
 | 📁 | **FTP e gerenciador de arquivos** | Servidor FTP para copiar jogos pelo PC; gerenciador com extrair, recortar, colar e excluir. |
@@ -124,6 +124,15 @@ echo "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub/main/update.
 4. Conecte o Wi-Fi antes de baixar jogos.
 
 **Requisitos:** PortMaster com o runtime `love_11.5`, `curl` ou `wget` e `unzip` (já vêm no dArkOS/dArkOSRE). Sem PortMaster, o hub tem a opção **Gerenciar PortMaster** para instalá-lo — mas para abrir o hub pela primeira vez é preciso o LÖVE do PortMaster (ou o `love` do sistema).
+
+### Aparelhos confirmados
+
+| Aparelho | Situação |
+|---|---|
+| R36S (dArkOSRE) | aparelho principal do projeto |
+| RX6H | funcionando, confirmado por usuário (sistema não informado) |
+
+Testou em outro aparelho? Avise no grupo do Telegram ou no canal Lag do Lira que ele entra na lista.
 
 ---
 

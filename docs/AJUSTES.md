@@ -961,7 +961,7 @@ A hora é a do sistema do console (fuso configurado no dArkOS), lida a cada quad
 
 ## 0.5.0 BETA — Redesign: Wii Blue Edition + Neon Grid Edition
 
-- **Pastel Pop Edition** (novo, padrão na primeira abertura, tema claro): inspirado nos menus do 3DS e do Wii U — moldura em degradê azul e roxo, fundo claro pontilhado com formas pastel, cartões brancos com bordas coloridas que saltam ao selecionar, barras em pílula e **tela inicial em carrossel** (`ui/carousel.lua`) com balão de informações do canal.
+- **Pastel Pop Edition** (novo, tema claro): inspirado nos menus do 3DS e do Wii U — moldura em degradê azul e roxo, fundo claro pontilhado com formas pastel, cartões brancos com bordas coloridas que saltam ao selecionar, barras em pílula e **tela inicial em carrossel** (`ui/carousel.lua`) com balão de informações do canal.
 - Pastel Pop: tela inicial sem o EM DESTAQUE (os outros temas mantêm).
 - **Vitrine de capas** no Pastel Pop (`ui/coverview.lua`): listas de Ports de Jogos/Utilitários, Meus Ports, Favoritos e jogos da Biblioteca com fundo da capa esmaecida, coluna de capas, nome grande com pílulas e painel com Detalhes, Descrição e Compatibilidade. Recortes de tela aninhados (`G.clip`) para capas dentro da coluna.
 - Biblioteca: família própria de ícones de console (154 sistemas, arte original, `tools/make_system_icons.py` → `assets/systems/`) e ícones do próprio usuário em `r36sporthub/icones/sistemas/<sistema>.png` (o hub não inclui ícones de terceiros).
@@ -975,3 +975,17 @@ A hora é a do sistema do console (fuso configurado no dArkOS), lida a cada quad
 - Armazenamento: **Baixar todas as capas do catálogo** — baixa de uma vez, em segundo plano, as capas que ainda não estão no console (mostra quantas faltam e o progresso; A de novo cancela; troca de tela não interrompe).
 - Aparência: atalho **Temas do EmulationStation**; Restaurar aparência volta ao Wii Blue Edition. Ordem dos temas: Wii Blue, Neon Grid, Padrão.
 - Tema Padrão mantido (menu em lista). Nenhuma função removida; o painel NEON GRID antigo continua disponível como layout `dashboard`.
+
+## 0.5.2 BETA — Neon Grid em painel verde, Tema Padrão de volta, teste de controles ao vivo, Reportar problema, selo NOVO, aparelho detectado e backup dos saves
+
+- **Tema Padrão** (o original) volta a ser o tema da primeira abertura e o de **Restaurar aparência**. Quem já escolheu outro tema continua com ele.
+- **Neon Grid Edition repaginado** (painel gamer escuro em verde, `layout: "xdash"`, `ui/xdash.lua`): Guia Rápido com as capas dos últimos ports abertos/instalados e atalhos (Meus Ports, Favoritos, Downloads); cartão de destaque **Continuar jogo** (último port aberto pelo hub) ou **Em destaque**; seis blocos grandes (Central de Conteúdo, Biblioteca, Categorias, Configurações, Sobre o Projeto, Sair).
+- Listas de ports no Neon Grid em **grade de capas** (`style.list: "grid"`, `ui/covergrid.lua`), com o port escolhido em destaque no alto.
+- O hub guarda os últimos ports abertos (`recent_ports` nas preferências).
+
+- **Reportar problema** (Configurações > Diagnóstico e suporte): pergunta o que aconteceu (download/instalação, travou/fechou, outro) e junta num único `.txt` em `logs/reportar_problema_*.txt` o aparelho, o sistema, a RAM, o armazenamento, o PortMaster, o diagnóstico, os últimos 3 erros, o arquivo de problemas mais recente e as últimas linhas do registro. Sem senhas, até ~200 KB, guarda os 5 mais recentes. Feito para mandar no grupo do Telegram.
+- **Selo NOVO**: ports com `added` nos últimos 7 dias (e ainda não instalados) ganham o selo nas listas, na vitrine (Pastel Pop) e na grade de capas (Neon Grid). A data de referência é a maior entre o relógio do console e o `added` mais novo do catálogo.
+- **Aparelho detectado** em Informações do Console: nome e placa pela base de placas do Analisador de Console (Device Tree / `Hardware` do `/proc/cpuinfo`), ou o nome lido do sistema quando a placa não está na base. Linha **Tela** com a resolução real, avisando quando não é 640x480.
+- **RAM do R36S corrigida**: o R36S tem 1 GB físico (2 chips DDR3L), mas o Linux mostra cerca de 975 MB porque o kernel e a GPU reservam uma parte. O Analisador agora usa a faixa visível de 920 a 1024 MB (`reference.ram_visible_mb`) e mostra "X MB visíveis no sistema (1 GB físico)". Placas de clone aparecem com 896, 640, 512 ou 384 MB.
+- **Backup dos saves** (`core/savebackup.lua`): procura `conf/`, `savedata/`, `saves/`, `save/`, `userdata/` e arquivos `.sav/.srm/.save` dentro das pastas do port e guarda um `.tar.gz` em `backups/saves/<id>/` (5 por port). Em Configurações > Backup e restauração > **Saves dos ports**: A faz backup, X restaura o mais recente. Ao remover um port com saves, o hub oferece **BACKUP DOS SAVES E REMOVER**.
+- **Teste de controles ao vivo** (`ui/screens/padtest.lua`): ao abrir "Testar analógicos e botões" (Configurações ou Ports Utilitários), aparece na hora o desenho do controle. Cada botão acende ao ser apertado e fica verde depois de testado; os dois analógicos mostram posição, valores, alcance máximo e o contorno do alcance; o painel "Dados brutos" mostra os eixos e os botões numerados do SDL. Todos os botões são testáveis: **segure SELECT + START** para voltar e **segure L1 + R1** para o teste completo (R36S Analog Tester, com relatório), que continua em "Teste completo com relatório".

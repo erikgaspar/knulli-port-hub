@@ -1,15 +1,15 @@
 # Temas do R36S PORT HUB
 
-Configurações → **Temas** lista os temas instalados. **A** aplica o tema na hora (sem reiniciar). A escolha fica salva em `theme.txt`, na pasta de dados do app (`r36sporthub/conf/...`), e é aplicada automaticamente ao abrir. Se o tema salvo não puder ser carregado, o app volta ao **Tema Padrão** e avisa. Sem escolha salva (primeira abertura), o app usa o **Pastel Pop Edition**.
+Configurações → **Temas** lista os temas instalados. **A** aplica o tema na hora (sem reiniciar). A escolha fica salva em `theme.txt`, na pasta de dados do app (`r36sporthub/conf/...`), e é aplicada automaticamente ao abrir. Se o tema salvo não puder ser carregado, o app volta ao **Tema Padrão** e avisa. Sem escolha salva (primeira abertura), o app usa o **Tema Padrão**.
 
 Nesta versão vêm quatro temas, nesta ordem:
 
 | id | Nome | Tela inicial | Cartões | Seleção |
 |---|---|---|---|---|
-| `pastel` | Pastel Pop Edition (padrão, tema claro) | carrossel | brancos com borda colorida | salto + contorno roxo/azul |
+| `pastel` | Pastel Pop Edition (tema claro) | carrossel | brancos com borda colorida | salto + contorno roxo/azul |
 | `wiiblue` | Wii Blue Edition | grade de canais | brancos, texto azul-escuro | halo azul + leve aumento |
-| `neongrid` | Neon Grid Edition | grade de canais | escuros | contorno neon pulsante + cantos de mira |
-| `default` | Tema Padrão | menu em lista | painéis escuros | moldura rosa |
+| `neongrid` | Neon Grid Edition | painel verde (Guia Rápido + destaque + blocos); listas em grade de capas | grafite | brilho verde; bloco selecionado fica verde |
+| `default` | Tema Padrão (padrão, usado ao instalar) | menu em lista | painéis escuros | moldura rosa |
 
 Os três primeiros usam **a mesma estrutura** (mesmas telas, menus, botões, dados e estados): só cores, fundo, cartões e efeitos mudam. O antigo tema verde e preto (id `xbox`) continua sendo migrado para o `neongrid`.
 
@@ -58,9 +58,9 @@ Cada tema é **só dados** (nenhum código é executado):
   - `bg0` fundo, `bg1` painéis, `bg2`/`bg3` painéis secundários/selecionados, `line` bordas, `text`/`dim`/`faint` textos, `accent` destaque e seleção, `accent2` destaque secundário (informações, barras), `yellow`/`green`/`red`/`orange` avisos e estados.
 - `buttons`: cores dos ícones dos botões (opcional).
 - `style.background`: `"retro"` (grade e scanlines, do tema padrão), `"modern"` (preto com brilho e diagonais), `"neongrid"` (quase preto, grade em perspectiva e horizonte iluminado) `"wii"` (degradê azul, faixas horizontais discretas e arcos claros na base) ou `"pastel"` (moldura em degradê ciano/azul/roxo, área clara pontilhada e formas pastel desfocadas).
-- `style.layout`: `"carousel"` troca a tela inicial pelo **carrossel** (Pastel Pop); `"channels"` pela **grade de canais** (Wii Blue e Neon Grid); `"dashboard"` usa o painel NEON GRID da 0.4.7. Os dois trocam também a página do port pela versão com grade de informações e ações Instalar / Iniciar / Remover / Favoritar. Sem esse campo, as telas clássicas continuam.
+- `style.layout`: `"carousel"` troca a tela inicial pelo **carrossel** (Pastel Pop); `"channels"` pela **grade de canais** (Wii Blue e Neon Grid); `"dashboard"` usa o painel NEON GRID da 0.4.7; `"xdash"` usa o **painel verde** (Neon Grid). `style.list = "grid"` mostra as listas de ports em **grade de capas** com o port escolhido em destaque. Os dois trocam também a página do port pela versão com grade de informações e ações Instalar / Iniciar / Remover / Favoritar. Sem esse campo, as telas clássicas continuam.
 - `style.card` (opcional): cores dos **cartões compartilhados** (canais, áreas da Central, categorias, cartões de Configurações): `fill`, `line`, `text`, `dim`, `faint`, `icon`. Sem ele, os cartões usam as cores dos painéis. Em cartão claro, as cores de estado ficam mais escuras automaticamente para manter o contraste.
-- `style.focus`: cor da seleção dos cartões. `style.effect`: `"pop"` (cartão salta, contorno roxo/azul, Pastel Pop), `"soft"` (halo e leve aumento, Wii Blue) ou `"neon"` (contorno pulsante e cantos de mira, Neon Grid); sem ele, moldura simples.
+- `style.focus`: cor da seleção dos cartões. `style.effect`: `"pop"` (cartão salta, contorno roxo/azul, Pastel Pop), `"soft"` (halo e leve aumento, Wii Blue) `"neon"` (contorno pulsante e cantos de mira) ou `"glow"` (brilho verde largo, Neon Grid); sem ele, moldura simples.
 - `style.chrome`: `"pill"` desenha a barra do topo e a de dicas como pílulas brancas flutuantes (Pastel Pop).
 - Tema claro: basta usar cores claras em `bg0`/`bg1` e escuras em `text`/`dim` — as telas seguem a paleta.
 - `style.round`: cantos (1 = arredondado como o padrão, 0 = retos).
