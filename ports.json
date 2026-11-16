@@ -1,7 +1,7 @@
 {
   "catalog_version": 1,
   "title": "R36S PORT HUB - ports (R36S)",
-  "updated": "2026-11-14",
+  "updated": "2026-11-16",
   "categories": [
     {
       "id": "acao",
@@ -618,6 +618,40 @@
       "requires_files": false,
       "featured": false,
       "added": "2026-11-14"
+    },
+    {
+      "id": "asphalt-5",
+      "name": "Asphalt 5",
+      "short": "Corrida arcade com carros esportivos e derrapagens.",
+      "description": "Port para R36S.\n\nCorra com carros esportivos em pistas urbanas, faça derrapagens e use nitro para vencer nas ruas.\n\nAviso: o R36S PORT HUB não é o desenvolvedor deste jogo nem deste port e não hospeda nenhum arquivo. Apenas organizamos links de download já disponíveis publicamente. Todos os direitos pertencem aos seus criadores e editoras.",
+      "category": "corrida",
+      "section": "games",
+      "version": "1.0",
+      "size_bytes": 113408372,
+      "size_label": "108.2 MB",
+      "download_url": "https://archive.org/download/asphalt-5_20261116/Asphalt5.zip",
+      "cover": "https://archive.org/download/asphalt-5_20261116/asphalt-5-cover.png",
+      "author": "Créditos aos autores originais",
+      "requires_files": false,
+      "featured": false,
+      "added": "2026-11-16"
+    },
+    {
+      "id": "asphalt-7-heat",
+      "name": "Asphalt 7: Heat",
+      "short": "Corrida arcade com carros licenciados e pistas pelo mundo.",
+      "description": "Port para R36S.\n\nPilote carros licenciados em pistas espalhadas pelo mundo, com derrapagens, nitro e vários modos de corrida.\n\nAviso: o R36S PORT HUB não é o desenvolvedor deste jogo nem deste port e não hospeda nenhum arquivo. Apenas organizamos links de download já disponíveis publicamente. Todos os direitos pertencem aos seus criadores e editoras.",
+      "category": "corrida",
+      "section": "games",
+      "version": "1.0",
+      "size_bytes": 871261145,
+      "size_label": "830.9 MB",
+      "download_url": "https://archive.org/download/asphalt-7-heat_202611/Asphalt%207%20Heat.zip",
+      "cover": "https://archive.org/download/asphalt-7-heat_202611/asphalt-7-heat-cover.png",
+      "author": "Créditos aos autores originais",
+      "requires_files": false,
+      "featured": false,
+      "added": "2026-11-16"
     }
   ]
 }
