@@ -3,9 +3,9 @@
 --  Mostra na hora cada botao apertado no desenho do controle, os dois
 --  analogicos (posicao, alcance maximo e valores), os dados brutos do SDL
 --  (eixos e botoes numerados) e quantos botoes ja foram testados.
---  Todos os botoes sao testaveis, entao a saida e por combinacao segurada:
---    SELECT + START (1 s): voltar
---    L1 + R1 (1 s): Teste completo (R36S Analog Tester, com relatorio)
+--  Saidas (SELECT + START nao e usado: no R36S essa combinacao fecha o app):
+--    FN: voltar
+--    L1 + R1 segurados (1 s): Teste completo (R36S Analog Tester, com relatorio)
 --  So le o controle; nao muda nada no sistema.
 -- =============================================================================
 local L = require("lib.i18n").L
@@ -78,16 +78,24 @@ function S:read()
     for i = 1, math.min(24, j:getButtonCount()) do raw.buttons[i] = j:isDown(i) end
     raw.name = j:getName()
   end
-  for key, id in pairs(KEYS) do
-    if love.keyboard.isDown(key) then down[id] = true end
+  -- Com controle conectado vale SO o que o controle informa. O hub transforma
+  -- o analogico esquerdo em setas (para navegar nos menus) e o gptokeyb pode
+  -- mandar teclas de seta: usar isso aqui faria o direcional "acender" ao
+  -- mexer no analogico sem o botao ter sido apertado.
+  local pad = j and j:isGamepad()
+  if not pad then
+    for key, id in pairs(KEYS) do
+      if love.keyboard.isDown(key) then down[id] = true end
+    end
   end
-  return down, sticks, raw
+  return down, sticks, raw, pad
 end
 
 function S:update(dt)
-  local down, sticks, raw = self:read()
+  local down, sticks, raw, pad = self:read()
   for id, t in pairs(self.flash) do
-    if t > 0 then down[id] = true; self.flash[id] = t - dt else self.flash[id] = nil end
+    if t > 0 and not pad then down[id] = true end
+    self.flash[id] = (t > 0) and (t - dt) or nil
   end
   self.down, self.sticks, self.raw = down, sticks, raw
   for id in pairs(down) do self.tested[id] = true end
@@ -101,22 +109,26 @@ function S:update(dt)
       if r > (self.trail[k][a] or 0) then self.trail[k][a] = math.min(1.2, r) end
     end
   end
-  -- combinacoes seguradas
-  if down.back and down.start then self.hold.exit = self.hold.exit + dt else self.hold.exit = 0 end
-  if down.leftshoulder and down.rightshoulder then self.hold.full = self.hold.full + dt else self.hold.full = 0 end
-  if self.hold.exit >= HOLD then
-    self.hold.exit = -99
+  -- FN volta (so depois de soltar, se ja estava apertado ao abrir a tela)
+  if self.fn_prev == nil then self.fn_prev = down.guide and true or false end
+  if down.guide and not self.fn_prev then
+    self.fn_prev = true
     Input.reset()
     App.pop()
-  elseif self.hold.full >= HOLD then
+    return
+  end
+  self.fn_prev = down.guide and true or false
+  -- combinacao segurada
+  if down.leftshoulder and down.rightshoulder then self.hold.full = self.hold.full + dt else self.hold.full = 0 end
+  if self.hold.full >= HOLD then
     self.hold.full = -99
     Input.reset()
     App.push("tester", { from = self.from })
   end
 end
 
--- START, FN e o resto: tudo vira teste (sem acao). Acoes que chegam so pelo
--- mapeamento do hub (ex.: teclas do gptokeyb) acendem o botao por um instante.
+-- START, FN e o resto: tudo vira teste (sem acao). Sem controle detectado
+-- (teste no PC), as acoes do hub acendem o botao por um instante.
 local ACT = { up = "dpup", down = "dpdown", left = "dpleft", right = "dpright", a = "a", b = "b", x = "x", y = "y",
   l1 = "leftshoulder", r1 = "rightshoulder", l2 = "l2", r2 = "r2", select = "back", start = "start", shot = "guide" }
 function S:on_start() self:action("start") end
@@ -187,12 +199,14 @@ function S:draw_pad(px, py, pw, ph)
     G.frame(bx, byy, 18, 18, c or T.c.line, 3, 2)
   end
   G.rect(dx - 9, dy - 9, 18, 18, T.c.bg3, 2)
-  -- A B X Y
+  -- A B X Y no padrao do R36S (estilo Nintendo): X em cima, A a direita,
+  -- B embaixo e Y a esquerda. Os nomes do SDL no dArkOS seguem as letras
+  -- impressas no aparelho (o mesmo A que confirma no hub).
   local ax, ay = cx + 98, by + 50
-  rbtn(self, "x", ax - 22, ay, 12, "X")
-  rbtn(self, "b", ax + 22, ay, 12, "B")
-  rbtn(self, "y", ax, ay - 22, 12, "Y")
-  rbtn(self, "a", ax, ay + 22, 12, "A")
+  rbtn(self, "x", ax, ay - 22, 12, "X")
+  rbtn(self, "a", ax + 22, ay, 12, "A")
+  rbtn(self, "b", ax, ay + 22, 12, "B")
+  rbtn(self, "y", ax - 22, ay, 12, "Y")
   -- select / FN / start
   qbtn(self, "back", cx - 54, by + 22, 40, 14, "SEL")
   qbtn(self, "guide", cx - 14, by + 22, 28, 14, "FN")
@@ -295,13 +309,19 @@ function S:draw()
   -- progresso e saidas
   local x, y, w, h = 12, 358, 616, 80
   G.panel(x, y, w, h, { bg = T.c.bg1 })
-  local n, tot = 0, #BUTTONS
-  for _, b in ipairs(BUTTONS) do if self.tested[b.id] then n = n + 1 end end
+  -- FN e o botao de voltar: fica fora da contagem
+  local n, tot = 0, 0
+  for _, b in ipairs(BUTTONS) do
+    if b.id ~= "guide" then
+      tot = tot + 1
+      if self.tested[b.id] then n = n + 1 end
+    end
+  end
   G.text(T.f.bodyb, string.format(I18N.tr(L("Botões testados: %d de %d")), n, tot), x + 14, y + 10, n == tot and T.c.green or T.c.text)
   G.rect(x + 14, y + 34, 280, 8, T.c.bg3, 4)
   G.rect(x + 14, y + 34, 280 * n / tot, 8, n == tot and T.c.green or T.c.accent, 4)
   local miss = {}
-  for _, b in ipairs(BUTTONS) do if not self.tested[b.id] then miss[#miss + 1] = b.label end end
+  for _, b in ipairs(BUTTONS) do if b.id ~= "guide" and not self.tested[b.id] then miss[#miss + 1] = b.label end end
   G.text_fit(T.f.small, #miss == 0 and L("Todos os botões responderam.") or (L("Falta: ") .. table.concat(miss, " ")), x + 14, y + 50, 290, T.c.dim)
   -- combinacoes
   local function hold_bar(label, t, yy)
@@ -309,7 +329,8 @@ function S:draw()
     G.rect(x + 536, yy + 5, 66, 6, T.c.bg3, 3)
     if t > 0 then G.rect(x + 536, yy + 5, 66 * math.min(1, t / HOLD), 6, T.c.yellow, 3) end
   end
-  hold_bar(L("Segure SELECT + START: voltar"), self.hold.exit, y + 14)
+  local bw = G.button_icon("FN", x + 320, y + 15)
+  G.text_fit(T.f.small, L("Aperte FN: voltar"), x + 326 + bw, y + 14, 270 - bw, T.c.text)
   hold_bar(L("Segure L1 + R1: teste completo"), self.hold.full, y + 40)
 end
 

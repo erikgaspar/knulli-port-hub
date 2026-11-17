@@ -51,7 +51,12 @@ local function is_inside_roots(path, rs)
   return false
 end
 
+local PART_TYPE = { rar = "RAR", ["7z"] = "7Z", zipsplit = "ZIP", zipspan = "ZIP" }
 local function archive_type(name)
+  local pi = require("core.archives").part_info(name)
+  if pi then return PART_TYPE[pi.kind] end
+  local tk = require("core.archives").tar_kind(name)
+  if tk then return tk end
   local ext = name:lower():match("%.([%w]+)$")
   return ext and ARCHIVE[ext] or nil
 end
@@ -102,6 +107,36 @@ function S:load(keep)
         local dir = kind == "directory"
         items[#items + 1] = { name = name, dir = dir, size = tonumber(size), arc = (not dir) and archive_type(name) or nil,
           path = self.path .. "/" .. name }
+      end
+    end
+    -- arquivos em partes (part1.rar, .7z.001, .zip.001, .z01): a primeira parte
+    -- mostra quantas partes e o tamanho total; as outras mostram "PARTE n"
+    local AR = require("core.archives")
+    local groups = {}
+    for _, it in ipairs(items) do
+      if it.arc then
+        local pi = AR.part_info(it.name)
+        local key = pi and (pi.kind:gsub("zipspan", "zip") .. ":" .. pi.base:lower())
+          or (it.name:lower():match("^(.-)%.zip$") and ("zip:" .. it.name:lower():match("^(.-)%.zip$")))
+        if pi and pi.kind == "zipsplit" then key = "zipsplit:" .. pi.base:lower() end
+        if key then
+          local g = groups[key] or { n = 0, size = 0 }
+          groups[key] = g
+          g.n, g.size = g.n + 1, g.size + (it.size or 0)
+          it.part_key, it.part_idx = key, pi and pi.index or 0
+          if pi and pi.kind == "zipspan" then it.part_idx = pi.index + 1 end
+        end
+      end
+    end
+    for _, it in ipairs(items) do
+      local g = it.part_key and groups[it.part_key]
+      if g and g.n > 1 then
+        local first = (it.part_idx == 1) or (it.part_idx == 0)
+        if first then
+          it.parts, it.total = g.n, g.size
+        else
+          it.extra_part = it.part_idx
+        end
       end
     end
     table.sort(items, function(a, b)
@@ -170,12 +205,15 @@ function S:draw()
     icon(it, 26, y + 5, c)
     local label = it.up and L(".. (voltar)") or it.name
     local right = ""
-    if it.arc then right = U.format_bytes(it.size)
+    if it.arc then right = U.format_bytes(it.total or it.size)
     elseif not it.dir and it.size then right = U.format_bytes(it.size) end
     local tagw = 0
     if it.arc then
-      tagw = T.f.pix8:getWidth(it.arc) + 12
-      G.tag(it.arc, T.W - 28 - tagw - 76, y + 7, T.c.yellow, T.c.bg0)
+      local tag = it.arc
+      if it.parts then tag = tag .. string.format(require("lib.i18n").tr(L(" • %d PARTES")), it.parts)
+      elseif it.extra_part then tag = string.format(require("lib.i18n").tr(L("PARTE %d")), it.extra_part) end
+      tagw = T.f.pix8:getWidth(tag) + 12
+      G.tag(tag, T.W - 28 - tagw - 76, y + 7, it.extra_part and T.c.faint or T.c.yellow, T.c.bg0)
     end
     G.text_fit(T.f.body, label, 54, y + 5, T.W - 54 - 120 - tagw, on and T.c.text or (it.arc and T.c.text or T.c.dim))
     if right ~= "" then G.text(T.f.small, right, T.W - 28 - T.f.small:getWidth(right), y + 7, T.c.faint) end
@@ -199,7 +237,17 @@ function S:draw()
   G.hints(h)
 end
 
+--- arquivo em partes: qualquer parte escolhida vira a primeira (como no PC)
+local function first_part_item(it)
+  local AR = require("core.archives")
+  local fp = AR.first_part(it.path)
+  if fp == it.path then return it end
+  if not U.exists(fp) then return it end
+  return { path = fp, name = fp:match("([^/]+)$"), size = U.file_size(fp) or it.size, arc = it.arc }
+end
+
 function S:extract(it)
+  it = first_part_item(it)
   local p = { id = "file:" .. it.path, slug = U.slug("file_" .. it.name), name = it.name, size = it.size,
     download_url = "", install_check = {}, version = "" }
   -- o arquivo compactado so e excluido se o usuario confirmar depois da extracao
@@ -207,13 +255,16 @@ function S:extract(it)
 end
 
 function S:install_port(it)
+  it = first_part_item(it)
+  local nparts = require("core.archives").count(it.path)
   local p = { id = "file:" .. it.path, slug = U.slug("file_" .. it.name), name = it.name, size = it.size,
     download_url = "", install_check = {}, version = "" }
   App.show_dialog({
     title = L("Instalar como port?"),
     kind = "info",
-    body = it.name .. "  (" .. U.format_bytes(it.size) .. ")\n\n"
-      .. L("INSTALAR COMO PORT: instala em ") .. C.PORTS_DIR .. L(" com as verificações da loja (script .sh, sem pastas duplicadas).\n\n")
+    body = it.name .. "  (" .. U.format_bytes(it.size) .. ")"
+      .. (nparts > 1 and string.format(require("lib.i18n").tr(L("\nArquivo em %d partes: todas serão usadas, como no PC.")), nparts) or "")
+      .. "\n\n" .. L("INSTALAR COMO PORT: instala em ") .. C.PORTS_DIR .. L(" com as verificações da loja (script .sh, sem pastas duplicadas).\n\n")
       .. L("Após a instalação bem-sucedida, o arquivo compactado será excluído."),
     buttons = {
       { label = L("INSTALAR"), fn = function() App.install(p, { local_file = it.path, delete_source = true, mode = "port" }) end },

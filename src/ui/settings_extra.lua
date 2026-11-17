@@ -161,9 +161,33 @@ local FAV_SORTS = {
 X.SORTS = {
   { id = "catalog", label = L("Ordem do catálogo") },
   { id = "name", label = L("Nome (A-Z)") },
+  { id = "recent", label = L("Recém adicionados") },
   { id = "size", label = L("Tamanho (menor primeiro)") },
   { id = "installed", label = L("Instalados primeiro") },
 }
+
+--- modos que o botao X da Central de Conteudo alterna
+X.VIEW_SORTS = { "catalog", "name", "recent" }
+function X.sort_label(id)
+  local tr = require("lib.i18n").tr
+  for _, o in ipairs(X.SORTS) do if o.id == id then return tr(o.label) end end
+  return tr(X.SORTS[1].label)
+end
+--- nome curto para a barra de botoes
+local SHORT = { catalog = L("Padrão"), name = L("A-Z"), recent = L("Recentes"), size = L("Tamanho"), installed = L("Instalados") }
+function X.sort_short(id)
+  return require("lib.i18n").tr(SHORT[id] or SHORT.catalog)
+end
+--- proximo modo de visualizacao (X na Central de Conteudo); grava na preferencia
+function X.cycle_view_sort()
+  local cur = Prefs.get("list_sort") or "catalog"
+  local nxt = "name"
+  for i, id in ipairs(X.VIEW_SORTS) do
+    if id == cur then nxt = X.VIEW_SORTS[i % #X.VIEW_SORTS + 1] end
+  end
+  Prefs.set("list_sort", nxt)
+  return nxt
+end
 
 --- ordena uma lista de ports conforme a preferencia (estavel)
 function X.sort_ports(list, key)
@@ -176,6 +200,11 @@ function X.sort_ports(list, key)
     if mode == "name" then
       local na, nb = tostring(a.name or ""):lower(), tostring(b.name or ""):lower()
       if na ~= nb then return na < nb end
+    elseif mode == "recent" then
+      -- data de entrada no catalogo ("added"), mais novos primeiro; sem data vai para o fim
+      local Catalog = require("core.catalog")
+      local da, db = Catalog.added_day(a) or -1, Catalog.added_day(b) or -1
+      if da ~= db then return da > db end
     elseif mode == "size" then
       local sa, sb = tonumber(a.size) or math.huge, tonumber(b.size) or math.huge
       if sa ~= sb then return sa < sb end
@@ -277,6 +306,21 @@ function X.downloads_rows(dl_status)
     return d, e
   end
   return {
+    { kind = "action", label = L("Senhas de arquivos compactados"),
+      desc = L("Arquivos .zip, .rar e .7z com senha são abertos sozinhos: o hub tenta as senhas dos grupos de ports (R36SPORTSBR e R36XBR) e as suas, do arquivo senhas.txt na pasta do hub (uma por linha). Se nenhuma funcionar, o hub pede a senha no teclado e pode salvar no senhas.txt. Arquivos em partes (part1.rar, .7z.001, .zip.001) são extraídos juntos, como no PC."),
+      value = function()
+        local AR = require("core.archives")
+        return string.format(I18N.tr(L("%d do hub + %d suas")), #AR.DEFAULT_PASSWORDS, #AR.user_passwords())
+      end,
+      on_a = function()
+        local AR = require("core.archives")
+        AR.ensure_file()
+        App.show_dialog({ title = L("Senhas de arquivos compactados"), kind = "info",
+          body = L("Senhas do hub: ") .. table.concat(AR.DEFAULT_PASSWORDS, ", ")
+            .. string.format(I18N.tr(L("\nSuas senhas: %d")), #AR.user_passwords())
+            .. L("\n\nPara adicionar uma senha, escreva uma por linha no arquivo:\n") .. AR.file()
+            .. L("\n\nDá para editar pelo FTP, pelo Gerenciador de arquivos do PC ou com o cartão SD no PC.") })
+      end },
     { kind = "action", label = L("Central de Downloads"),
       desc = L("Downloads, extrações e instalações feitos pelo hub aparecem aqui, com progresso, velocidade e tamanho reais.\nPressione START em qualquer tela para voltar a esta central."),
       value = dl_status, on_a = function() App.open_downloads(true) end },
@@ -740,7 +784,7 @@ function X.storage_category()
           end }, { label = L("CANCELAR") } } })
       end }
     rows[#rows + 1] = { kind = "action", label = L("Gerenciador de arquivos"),
-      desc = L("Navegue pelo cartão SD: copiar, recortar, colar, excluir e extrair arquivos ZIP, RAR e 7z."),
+      desc = L("Navegue pelo cartão SD: copiar, recortar, colar, excluir e extrair arquivos ZIP, RAR, 7z e TAR."),
       on_a = function() App.push("files", { path = C.PORTS_DIR }) end }
     rows[#rows + 1] = { kind = "action", label = L("Otimizador e manutenção do microSD"), icon = "set_sdmaint",
       desc = L("Analise o espaço, verifique a integridade e cuide do cartão microSD sem colocar seus jogos em risco."),

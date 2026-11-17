@@ -29,6 +29,7 @@ local NOT_GAMES = { ["portmaster.sh"] = true, ["r36s port hub.sh"] = true }
 --- Normaliza nomes para comparar: sem acentos, minusculo, so letras e numeros
 function S.key(s)
   s = U.slug(s or "")
+  s = require("core.archives").strip_tar(s)
   s = s:gsub("%.zip$", ""):gsub("%.rar$", ""):gsub("%.7z$", ""):gsub("%.sh$", ""):gsub("%.port$", "")
   s = s:gsub("[^%w]", "")
   return s
@@ -128,6 +129,12 @@ local function parse_gamelist(text)
         add_meta(name, { file })
         local si = script_info(file)
         si.es_name = name
+        -- capa do gamelist.xml (a mesma que o EmulationStation mostra)
+        local img = game:match("<image>%s*(.-)%s*</image>")
+        if img then
+          img = xml_unescape(img):gsub("^%./", "")
+          if img ~= "" and not img:find("%.%.") and img:find("/") then si.cover = si.cover or img end
+        end
       end
     end
   end

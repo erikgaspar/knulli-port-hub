@@ -8,8 +8,8 @@ local L = require("lib.i18n").L
 local C = {}
 
 C.APP_NAME = L("R36S PORT HUB")
-C.VERSION = L("0.5.3 BETA")       -- texto exibido
-C.VERSION_NUM = "0.5.3"        -- numero usado para comparar com a atualizacao
+C.VERSION = L("0.5.4 BETA")       -- texto exibido
+C.VERSION_NUM = "0.5.4"        -- numero usado para comparar com a atualizacao
 -- R36 Hub OS: o hub e a interface principal do sistema (supervisor exporta R36HUBOS=1)
 C.OS_MODE = os.getenv("R36HUBOS") == "1"
 C.OS_NAME = "R36 Hub OS"

@@ -17,9 +17,9 @@ local ERRORS = {
   http_error = L("O servidor recusou o download (link inválido ou removido)."),
   net_error = L("Falha de conexão durante o download. Verifique o Wi-Fi e tente de novo."),
   empty_file = L("O download terminou, mas o arquivo veio vazio."),
-  not_zip = L("O arquivo baixado não é um pacote válido (ZIP, RAR ou 7z)."),
+  not_zip = L("O arquivo baixado não é um pacote válido (ZIP, RAR, 7z ou TAR)."),
   no_extractor = L("Não há extrator de %s disponível no console."),
-  encrypted = L("O arquivo está protegido por senha e não pode ser instalado."),
+  encrypted = L("O arquivo está protegido por senha e nenhuma das senhas salvas funcionou. Adicione a senha certa no arquivo senhas.txt da pasta do hub (Configurações > Downloads > Senhas de arquivos compactados) e tente de novo."),
   no_memory = L("Memória insuficiente para extrair este arquivo no console."),
   size_mismatch = L("Download incompleto: o tamanho do arquivo não confere."),
   checksum = L("Arquivo corrompido: a verificação (checksum) falhou."),
@@ -93,6 +93,13 @@ function I.start(p, opts)
     bundled_7z = C.APP_DIR .. "/bin/7zzs",
     sevenzip = os.getenv("PORTHUB_7Z") or "",
     preapproved = opts.preapproved and true or false,
+    -- senhas para arquivos protegidos (grupos de ports + senhas.txt)
+    -- senha digitada no teclado do hub (quando nenhuma salva funcionou): so ela
+    passwords = opts.password and { opts.password } or require("core.archives").passwords(),
+    groups = require("core.archives").DEFAULT_PASSWORDS,
+    -- arquivo local em partes (part1.rar, .7z.001, .zip.001, .z01...)
+    parts = opts.local_file and require("core.archives").parts(opts.local_file) or nil,
+    multipart = opts.local_file and require("core.archives").count(opts.local_file) > 1 or false,
   })
   I.job = j
   U.log("instalacao iniciada:", p.name, p.download_url)
@@ -142,6 +149,12 @@ function I.update()
         local prev = Manifest.data[j.port.id] and Manifest.data[j.port.id].gamelist
         Manifest.record(j.port, m.entries)
         I.apply_es_cover(j, m.entries, prev)
+      elseif (j.opts.mode or "port") == "port" then
+        -- arquivo local instalado como port: origem (grupo da senha) e a capa
+        -- que veio dentro do pacote, no EmulationStation e no hub
+        j.source = m.source
+        local okx, err = pcall(I.local_port_extras, j, m.entries or {}, m.source, m.porthub)
+        if not okx then U.log("port local: extras falharam:", tostring(err)) end
       end
       Manifest.rescan(true)
       j.finished, j.result, j.entries, j.deleted = true, "done", m.entries, m.deleted
@@ -149,11 +162,102 @@ function I.update()
       j.finished, j.result = true, "error"
       j.error = I.error_text(m.code, m.detail)
       j.error_code = m.code
+      if m.code == "encrypted" and j.opts and j.opts.password then
+        j.error = L("Senha incorreta.")
+      end
     elseif m.t == "cancelled" then
       j.finished, j.result = true, "cancelled"
     end
     m = j.out_ch:pop()
   end
+end
+
+--- Port instalado de arquivo local: guarda de onde veio (grupo da senha) e
+--- usa a capa que veio dentro do pacote (cover/capa/boxart/folder/poster...)
+--- no gamelist.xml. O EmulationStation e o hub leem a mesma capa.
+I.LOCAL_FILE = "local_sources.json"
+function I.local_sources()
+  local ok, t = pcall(love.filesystem.read, I.LOCAL_FILE)
+  local d = ok and t and require("lib.json").decode(t)
+  return type(d) == "table" and d or {}
+end
+
+local IMG_RANK = { "cover", "capa", "boxart", "box", "poster", "folder", "portada", "screenshot" }
+function I.find_pack_cover(entries)
+  local dir = C.PORTS_DIR
+  local cands = {}
+  for _, n in ipairs(entries) do
+    local full = dir .. "/" .. n
+    if n:lower():match("%.png$") or n:lower():match("%.jpe?g$") then
+      cands[#cands + 1] = full
+    elseif U.is_dir(full) then
+      local out = U.capture("find " .. U.shq(full) .. " -maxdepth 2 -type f \\( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \\) -size -4M 2>/dev/null | head -n 200") or ""
+      for f in out:gmatch("[^\n]+") do cands[#cands + 1] = f end
+    end
+  end
+  local best, best_rank
+  for _, f in ipairs(cands) do
+    local base = (f:match("([^/]+)$") or ""):lower()
+    for r, key in ipairs(IMG_RANK) do
+      if base:find(key, 1, true) and (not best_rank or r < best_rank) then best, best_rank = f, r end
+    end
+  end
+  return best
+end
+
+--- creditos do port: porthub.txt (do pacote ou ja dentro da pasta do jogo);
+--- sem ele, o "porter" do port.json do PortMaster
+function I.read_credits(entries, porthub_text)
+  local AR = require("core.archives")
+  local cr = AR.parse_credits(porthub_text)
+  if cr then return cr end
+  for _, n in ipairs(entries) do
+    local dir = C.PORTS_DIR .. "/" .. n
+    if U.is_dir(dir) then
+      cr = AR.parse_credits(U.read_file(dir .. "/porthub.txt"))
+      if cr then return cr end
+    end
+  end
+  for _, n in ipairs(entries) do
+    local pj = U.read_file(C.PORTS_DIR .. "/" .. n .. "/port.json")
+    local porter = pj and pj:match('"porter"%s*:%s*%[%s*"([^"]+)"') or (pj and pj:match('"porter"%s*:%s*"([^"]+)"'))
+    if porter and porter ~= "" then return { developer = porter } end
+  end
+  return nil
+end
+
+function I.local_port_extras(j, entries, source, porthub_text)
+  local scripts = {}
+  for _, n in ipairs(entries) do if n:lower():match("%.sh$") then scripts[#scripts + 1] = n end end
+  if #scripts == 0 then return end
+  local archive = (j.opts.local_file or ""):match("([^/]+)$")
+  local credits = I.read_credits(entries, porthub_text)
+  j.credits = credits
+  -- grupo informado pelo desenvolvedor vale quando nao veio da senha
+  if not source and credits and credits.group then source = credits.group; j.source = source end
+  -- 1) origem
+  local d = I.local_sources()
+  for _, sc in ipairs(scripts) do
+    d[sc] = { source = source, archive = archive, date = os.date("%Y-%m-%d"), credits = credits }
+  end
+  pcall(love.filesystem.write, I.LOCAL_FILE, require("lib.json").encode(d))
+  -- 2) capa que veio no pacote -> gamelist.xml (EmulationStation e hub)
+  local cover = I.find_pack_cover(entries)
+  j.pack_cover = cover
+  if cover then
+    local title = scripts[1]:gsub("%.[sS][hH]$", "")
+    local AR = require("core.archives")
+    local link = (credits and credits.link) or AR.GROUP_LINKS[source or ""]
+    local origin = source and (string.format(require("lib.i18n").tr(L("Baixado do grupo do Telegram %s.")), source)
+      .. (link and (" " .. link) or "")) or nil
+    local desc = credits and credits.description
+    if desc and origin then desc = desc .. "\n" .. origin elseif not desc then desc = origin end
+    local p = { id = "local-" .. title, name = (credits and credits.title) or title,
+      description = desc, developer = credits and credits.developer }
+    local okc, info, why = pcall(require("core.esgamelist").add_port, p, entries, cover)
+    U.log("port local: capa do pacote", cover, okc and info and "aplicada" or tostring(okc and why or info))
+  end
+  Manifest.rescan(true)
 end
 
 --- capa do port na lista de Ports do EmulationStation (gamelist.xml)

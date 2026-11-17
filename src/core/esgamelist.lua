@@ -200,6 +200,7 @@ local function write_entry(p, script, rel_img)
     local desc = p.description and p.description ~= "" and p.description or p.short
     if desc and desc ~= "" then t[#t + 1] = "\t\t<desc>" .. esc(desc) .. "</desc>" end
     for _, tg in ipairs(IMG_TAGS) do t[#t + 1] = "\t\t<" .. tg .. ">" .. esc(rel_img) .. "</" .. tg .. ">" end
+    if p.developer and p.developer ~= "" then t[#t + 1] = "\t\t<developer>" .. esc(p.developer) .. "</developer>" end
     if p.category and p.category ~= "" then t[#t + 1] = "\t\t<genre>" .. esc(p.category) .. "</genre>" end
     t[#t + 1] = "\t</game>"
     return table.concat(t, nl) .. nl

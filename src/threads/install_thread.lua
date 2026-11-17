@@ -111,6 +111,11 @@ local function find_7z()
   return nil
 end
 
+-- senha que abriu o arquivo (nil = sem senha). Nunca vai para o log.
+local PWD = nil
+local TARF = ""   -- opcao de compressao do tar ("", "z", "J" ou "j")
+local function popt(pw) return pw and ("-p" .. shq(pw)) or "-p-" end
+
 extract_7z = function(fmt)
   local X = find_7z()
   local unrar = (not X and fmt == "rar") and capture("command -v unrar 2>/dev/null"):match("^(%S+)") or nil
@@ -120,10 +125,43 @@ extract_7z = function(fmt)
   if X then
     log("extrator:", X)
     -- lista tecnica: caminhos, tamanhos, pastas, criptografia
-    local listing = capture(shq(X) .. " l -slt -ba -p- " .. shq(ZIP) .. " 2>&1; echo __PHX:$?")
+    local function lst(pw) return capture(shq(X) .. " l -slt -ba " .. popt(pw) .. " " .. shq(ZIP) .. " 2>&1; echo __PHX:$?") end
+    local listing = lst(nil)
     local lcode = tonumber(listing:match("__PHX:(%d+)")) or 2
-    if listing:find("Wrong password") or listing:find("Encrypted = %+") or listing:find("Can not open encrypted") then
-      fail("encrypted"); return false
+    local pwlist = job.passwords or {}
+    if lcode > 1 and (listing:find("Wrong password") or listing:find("Can not open encrypted")) then
+      -- nomes tambem criptografados: so lista com a senha certa
+      local found = false
+      for i, pw in ipairs(pwlist) do
+        local l2 = lst(pw)
+        local c2 = tonumber(l2:match("__PHX:(%d+)")) or 2
+        if c2 <= 1 and not l2:find("Wrong password") then
+          PWD, listing, lcode, found = pw, l2, c2, true
+          log("arquivo com senha: senha salva n." .. i .. " funcionou")
+          break
+        end
+      end
+      if not found then fail("encrypted"); return false end
+    elseif listing:find("Encrypted = %+") then
+      -- conteudo criptografado: testa a senha num arquivo pequeno do pacote
+      local test, tsz
+      for block in (listing .. "\n\n"):gmatch("(Path = .-)\n\n") do
+        if block:find("\nEncrypted = %+") and not block:find("\nFolder = %+") then
+          local sz = tonumber(block:match("\nSize = (%d+)")) or 0
+          if not tsz or sz < tsz then test, tsz = block:match("^Path = ([^\n]*)"), sz end
+        end
+      end
+      local found = false
+      for i, pw in ipairs(pwlist) do
+        local okt = sh(shq(X) .. " t " .. popt(pw) .. " -bso0 -bse0 -bsp0 " .. shq(ZIP)
+          .. (test and (" " .. shq(test)) or "") .. " >/dev/null 2>&1")
+        if okt then
+          PWD, found = pw, true
+          log("arquivo com senha: senha salva n." .. i .. " funcionou")
+          break
+        end
+      end
+      if not found then fail("encrypted"); return false end
     end
     if lcode > 1 then fail("bad_zip", (listing:match("ERROR: ([^\n]+)") or ""):sub(1, 80)); return false end
     for block in (listing .. "\n\n"):gmatch("(Path = .-)\n\n") do
@@ -140,6 +178,15 @@ extract_7z = function(fmt)
   else
     log("extrator: unrar", unrar)
     local listing = capture(shq(unrar) .. " lb -p- " .. shq(ZIP) .. " 2>/dev/null")
+    if listing == "" then
+      for _, pw in ipairs(job.passwords or {}) do
+        local l2 = capture(shq(unrar) .. " lb -p" .. shq(pw) .. " " .. shq(ZIP) .. " 2>/dev/null")
+        if l2 ~= "" and sh(shq(unrar) .. " t -idq -p" .. shq(pw) .. " " .. shq(ZIP) .. " >/dev/null 2>&1") then
+          PWD, listing = pw, l2
+          break
+        end
+      end
+    end
     for line in listing:gmatch("[^\n]+") do
       entries = entries + 1
       if line:sub(1, 1) == "/" or line:find("%.%./") then fail("unsafe_zip", line); return false end
@@ -156,9 +203,9 @@ extract_7z = function(fmt)
   local cmd
   if X then
     -- -mmt1: um processo de descompactacao (menos memoria no R36S)
-    cmd = shq(X) .. " x -y -p- -mmt1 -bb1 -bso1 -bse1 -bsp0 -o" .. shq(STAGE) .. " " .. shq(ZIP) .. " 2>&1; echo __PHX:$?"
+    cmd = shq(X) .. " x -y " .. popt(PWD) .. " -mmt1 -bb1 -bso1 -bse1 -bsp0 -o" .. shq(STAGE) .. " " .. shq(ZIP) .. " 2>&1; echo __PHX:$?"
   else
-    cmd = "cd " .. shq(STAGE) .. " && " .. shq(unrar) .. " x -o+ -y -p- " .. shq(ZIP) .. " 2>&1; echo __PHX:$?"
+    cmd = "cd " .. shq(STAGE) .. " && " .. shq(unrar) .. " x -o+ -y " .. popt(PWD) .. " " .. shq(ZIP) .. " 2>&1; echo __PHX:$?"
   end
   local h = io.popen(cmd)
   local count, code, lastpct, errl = 0, nil, -1, nil
@@ -291,6 +338,10 @@ local function run()
   if head:sub(1, 2) == "PK" then fmt = "zip"
   elseif head:sub(1, 7) == "Rar!\26\7\0" or head:sub(1, 8) == "Rar!\26\7\1\0" then fmt = "rar"
   elseif head:sub(1, 6) == "7z\188\175\39\28" then fmt = "7z"
+  elseif head:sub(258, 262) == "ustar" then fmt = "tar"; TARF = ""            -- .tar
+  elseif head:sub(1, 2) == "\31\139" then fmt = "tar"; TARF = "z"            -- .tar.gz / .tgz
+  elseif head:sub(1, 6) == "\253\55\122\88\90\0" then fmt = "tar"; TARF = "J" -- .tar.xz
+  elseif head:sub(1, 3) == "BZh" then fmt = "tar"; TARF = "j"                -- .tar.bz2
   end
   if not fmt then
     local low = lower(head):gsub("^%s+", "")
@@ -330,8 +381,28 @@ local function run()
   end
   if check_cancel() then return cancel_done() end
 
+  -- ZIP com senha ou dividido em partes: o 7-Zip (incluso no hub) cuida, como
+  -- no PC. O unzip nao abre ZIP dividido nem testa varias senhas.
+  local zip_pw = false
+  if fmt == "zip" then
+    if job.multipart then
+      if find_7z() then fmt = "zip7" else return fail("no_extractor", "ZIP") end
+    elseif sh("unzip -Z -v " .. shq(ZIP) .. " 2>/dev/null | grep -qiE 'file security status:[[:space:]]+encrypted'") then
+      if find_7z() then fmt = "zip7" else zip_pw = true end
+    end
+  end
   if fmt == "zip" then
     if not sh("command -v unzip >/dev/null 2>&1") then return fail("no_unzip") end
+    if zip_pw then
+      for i, pw in ipairs(job.passwords or {}) do
+        if sh("unzip -P " .. shq(pw) .. " -tqq " .. shq(ZIP) .. " >/dev/null 2>&1") then
+          PWD = pw
+          log("arquivo com senha: senha salva n." .. i .. " funcionou")
+          break
+        end
+      end
+      if not PWD then return fail("encrypted") end
+    end
     -- lista do ZIP: tamanho descompactado, quantidade de itens, caminhos perigosos
     local listing = capture("unzip -Z1 " .. shq(ZIP) .. " 2>/dev/null")
     local entries = 0
@@ -353,7 +424,7 @@ local function run()
 
     -- 5) extracao para a pasta temporaria ------------------------------------
     send({ t = "phase", phase = "extract", total = entries })
-    local h = io.popen("unzip -o " .. shq(ZIP) .. " -d " .. shq(STAGE) .. " 2>&1; echo __PHX:$?")
+    local h = io.popen("unzip -o " .. (PWD and ("-P " .. shq(PWD) .. " ") or "") .. shq(ZIP) .. " -d " .. shq(STAGE) .. " 2>&1; echo __PHX:$?")
     local count, code, lastpct = 0, nil, -1
     local errlines = {}
     if h then
@@ -385,9 +456,59 @@ local function run()
       if code == 50 then return fail("no_space", "") end
       return fail("bad_zip", detail)
     end
+  elseif fmt == "tar" then
+    -- TAR (.tar, .tar.gz, .tar.xz, .tar.bz2): o tar do sistema
+    if not sh("command -v tar >/dev/null 2>&1") then return fail("no_extractor", "TAR") end
+    -- lista: quantidade de itens, tamanho descompactado e caminhos perigosos
+    local listing = capture("tar -tv" .. TARF .. "f " .. shq(ZIP) .. " 2>/dev/null")
+    local entries, unpacked = 0, 0
+    for line in listing:gmatch("[^\n]+") do
+      -- "-rwxr-xr-x user/grupo 1234 2024-01-01 12:00 caminho" (links: "a -> b")
+      local size, name = line:match("^%S+%s+%S+%s+(%d+)%s+%S+%s+%S+%s+(.+)$")
+      if name then
+        entries = entries + 1
+        unpacked = unpacked + (tonumber(size) or 0)
+        name = name:gsub(" %-> .*$", ""):gsub(" link to .*$", "")
+        if name:sub(1, 1) == "/" or name:find("%.%./") or name:find("/%.%.$") or name == ".." then
+          return fail("unsafe_zip", name)
+        end
+      end
+    end
+    if entries == 0 then return fail("bad_zip", "TAR") end
+    local avail = free_bytes(job.ports_dir)
+    if avail and avail < unpacked + job.margin then
+      return fail("no_space", string.format("%d|%d", unpacked + job.margin, avail))
+    end
+    send({ t = "phase", phase = "extract", total = entries })
+    local h = io.popen("tar -xv" .. TARF .. "f " .. shq(ZIP) .. " -C " .. shq(STAGE) .. " 2>&1; echo __PHX:$?")
+    local count, code, lastpct = 0, nil, -1
+    local errlines = {}
+    if h then
+      for line in h:lines() do
+        local c = line:match("^__PHX:(%d+)")
+        if c then
+          code = tonumber(c)
+        else
+          if line:lower():find("^tar:") then errlines[#errlines + 1] = line else count = count + 1 end
+          local pct = math.floor(math.min(count, entries) / entries * 100)
+          if pct ~= lastpct then
+            send({ t = "progress", phase = "extract", done = math.min(count, entries), total = entries })
+            lastpct = pct
+          end
+          if count % 25 == 0 and check_cancel() then break end
+        end
+      end
+      h:close()
+    end
+    if cancelled then return cancel_done() end
+    if code ~= 0 then
+      local detail = errlines[1] or (L("codigo ") .. tostring(code))
+      if detail:find("No space") then return fail("no_space", "") end
+      return fail("bad_zip", detail)
+    end
   else
     -- RAR / 7z: extrator 7-Zip (incluso no hub) ou o do sistema
-    local ok7, err7 = extract_7z(fmt)
+    local ok7, err7 = extract_7z(fmt == "zip7" and "zip" or fmt)
     if not ok7 then return end
   end
 
@@ -440,6 +561,30 @@ local function run()
 
   local items = list(root)
   if #items == 0 then return fail("empty_pkg") end
+
+  -- porthub.txt (creditos do port: desenvolvedor, grupo, versao...) ao lado do
+  -- .sh: o hub le e guarda dentro da pasta do jogo, para nao ficar solto na
+  -- pasta ports (cada port traria o seu e um apagaria o do outro)
+  local porthub_txt
+  if job.mode ~= "extract" then
+    local keep = {}
+    local dirs = {}
+    for _, it in ipairs(items) do if it.dir then dirs[#dirs + 1] = it.name end end
+    for _, it in ipairs(items) do
+      if not it.dir and lower(it.name) == "porthub.txt" then
+        porthub_txt = read_all(root .. "/" .. it.name)
+        if #dirs == 1 then
+          sh("mv -f " .. shq(root .. "/" .. it.name) .. " " .. shq(root .. "/" .. dirs[1] .. "/porthub.txt"))
+        else
+          os.remove(root .. "/" .. it.name)
+        end
+        log("porthub.txt encontrado no pacote")
+      else
+        keep[#keep + 1] = it
+      end
+    end
+    items = keep
+  end
   if job.mode ~= "extract" and not has_script(items) and not job.allow_no_script then
     return fail("no_script")
   end
@@ -526,10 +671,19 @@ local function run()
   local deleted = false
   if job.local_file and job.delete_source then
     deleted = os.remove(job.local_file) and true or false
+    -- arquivo em partes: as outras partes saem junto
+    for _, ptn in ipairs(job.parts or {}) do
+      if ptn ~= job.local_file then os.remove(ptn) end
+    end
     log(deleted and L("arquivo compactado excluido:") or L("nao foi possivel excluir:"), job.local_file)
   end
   log("instalado:", table.concat(installed, ", "))
-  send({ t = "done", entries = installed, skipped = skipped, deleted = deleted })
+  -- origem: a senha dos grupos de ports e o proprio nome do grupo
+  local source
+  if PWD then
+    for _, g in ipairs(job.groups or {}) do if g == PWD then source = g end end
+  end
+  send({ t = "done", entries = installed, skipped = skipped, deleted = deleted, source = source, porthub = porthub_txt })
 end
 
 local okrun, err = pcall(run)

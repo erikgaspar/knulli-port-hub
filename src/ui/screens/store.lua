@@ -77,6 +77,21 @@ function S:refresh()
   if self.filter ~= "cat:testes_de_controles" then   -- esta categoria ja vem agrupada pelo tipo de teste
     ports = require("ui.settings_extra").sort_ports(ports, self.favs and "fav_sort" or "list_sort")
   end
+  -- Meus Ports (aba de jogos): arquivos de port soltos na pasta ports
+  -- (ex.: baixados do Telegram) viram um atalho "prontos para instalar" no topo
+  if self.mine and self.section ~= "tools" then
+    local PP = require("core.pendports")
+    if not self.pp_scanned then PP.scan(); self.pp_scanned = true end
+    local n = PP.count()
+    if n > 0 then
+      self.items[#self.items + 1] = { id = "_pendports", builtin = true, screen = "pendports", icon = "download",
+        badge = { L("INSTALAR"), T.c.yellow },
+        name = string.format(I18N.tr(L("%d arquivo(s) prontos para instalar")), n),
+        short = L("Ports (.zip, .rar, .7z, .tar) que estão na pasta ports e ainda não foram instalados. Abra para instalar."),
+        category = L("Pasta ports"), category_id = "_pend", size_label = "—", version = "",
+        section = "games" }
+    end
+  end
   for _, p in ipairs(ports) do self.items[#self.items + 1] = p end
   self.sel = 1
   if cur then
@@ -90,7 +105,7 @@ function S:on_catalog()
   self:refresh()
 end
 
-function S:resume() self:refresh() end
+function S:resume() self.pp_scanned = nil; self:refresh() end
 
 function S:leave() Covers.reset_pending() end
 
@@ -188,7 +203,7 @@ function S:draw_preview()
     G.rect(px + (pw - cw) / 2, py + 12, cw, ch, T.c.bg0, 10)
     G.frame(px + (pw - cw) / 2, py + 12, cw, ch, T.c.green, 10, 2)
     Icons.draw(p.icon, px + pw / 2 - 36, py + 70, T.c.green, 3)
-    G.text(T.f.pix8, L("INTEGRADO"), px, py + ch - 14, T.c.green, "center", pw)
+    G.text(T.f.pix8, (p.badge and p.badge[1]) or L("INTEGRADO"), px, py + ch - 14, (p.badge and p.badge[2]) or T.c.green, "center", pw)
   else
     G.cover(Covers.get(p), p, px + (pw - cw) / 2, py + 12, cw, ch, Covers.is_loading(p), App.t)
   end
@@ -245,7 +260,7 @@ function S:draw_showcase()
     elseif Catalog.is_new(p) then tags[#tags + 1] = { PortRow.NEW[1], PortRow.NEW[2] } end
     if Favorites.is(p) then tags[#tags + 1] = { L("FAVORITO"), T.c.yellow } end
   else
-    tags[#tags + 1] = { L("INTEGRADO"), T.c.green }
+    tags[#tags + 1] = p.badge or { L("INTEGRADO"), T.c.green }
   end
   local none = L("não informado")
   local sections = {}
@@ -303,7 +318,7 @@ function S:draw_grid()
     elseif Catalog.is_new(p) then tags[#tags + 1] = { PortRow.NEW[1], PortRow.NEW[2] } end
     if Favorites.is(p) then tags[#tags + 1] = { L("FAVORITO"), T.c.yellow } end
   else
-    tags[#tags + 1] = { L("INTEGRADO"), T.c.green }
+    tags[#tags + 1] = p.badge or { L("INTEGRADO"), T.c.green }
   end
   local short = p.builtin and (p.short or "") or Catalog.text(p, "short")
   CG.draw(self, {
@@ -336,7 +351,14 @@ function S:draw()
     G.hints({ { "a", L("Detalhes") }, { "x", L("Desinstalar") }, { "select", L("Favorito") }, { "b", L("Voltar") }, { "l1", "" }, { "r1", tabword } })
   else
     local cur = self.items[self.sel]
-    G.hints({ { "a", (cur and cur.builtin) and L("Abrir") or L("Ver detalhes") }, { "select", L("Favorito") }, { "b", L("Voltar") }, { "l1", "" }, { "r1", tabword }, { "y", L("Atualizar") } })
+    local hints = { { "a", (cur and cur.builtin) and L("Abrir") or L("Ver detalhes") }, { "select", L("Favorito") }, { "b", L("Voltar") }, { "l1", "" }, { "r1", tabword } }
+    if not self.favs then
+      -- X: ordem de visualizacao (catalogo / A-Z / recem adicionados)
+      local SX = require("ui.settings_extra")
+      hints[#hints + 1] = { "x", SX.sort_short(require("core.prefs").get("list_sort") or "catalog") }
+    end
+    hints[#hints + 1] = { "y", L("Atualizar") }
+    G.hints(hints)
   end
 end
 
@@ -377,8 +399,15 @@ function S:action(act)
     local on = Favorites.toggle(p)
     App.toast(on and (p.name .. L(" adicionado aos favoritos")) or (p.name .. L(" removido dos favoritos")), "info")
     if self.favs then self:refresh() end
-  elseif act == "x" and self.filter == "installed" and n > 0 then
+  elseif act == "x" and self.filter == "installed" and n > 0 and not self.items[self.sel].builtin then
     App.ask_uninstall(self.items[self.sel])
+  elseif act == "x" and not self.favs and self.filter ~= "installed" then
+    local SX = require("ui.settings_extra")
+    local m = SX.cycle_view_sort()
+    self:refresh()
+    self.sel, self.scroll = 1, 0
+    self:clamp()
+    App.toast(L("Ordem: ") .. SX.sort_label(m), "info")
   elseif act == "y" then
     App.toast(L("Atualizando catálogo..."), "info")
     App.refresh_catalog(true)

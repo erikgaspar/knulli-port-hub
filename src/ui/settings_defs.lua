@@ -341,7 +341,7 @@ local controls = {
   resume = function(scr) scr.rep_text = U.read_file(C.APP_DIR .. "/tools/r36s_analog_tester/relatorio_controles.txt") end,
   rows = {
     { kind = "action", label = L("Testar analógicos e botões"),
-      desc = L("Abre na hora o desenho do controle: cada botão acende quando apertado, os analógicos mostram posição, alcance e deriva. Segure SELECT + START para voltar."),
+      desc = L("Abre na hora o desenho do controle: cada botão acende quando apertado, os analógicos mostram posição, alcance e deriva. Aperte FN para voltar."),
       value = function() return L("ao vivo") end,
       on_a = function() App.push("padtest", { from = "settings" }) end },
     { kind = "action", label = L("Teste completo com relatório"),

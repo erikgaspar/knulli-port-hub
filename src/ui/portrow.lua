@@ -40,7 +40,7 @@ function R.draw(p, x, y, w, h, on, accent, extra)
     G.rect(x + 8, y + 4, 29, h - 8, T.c.bg0, 4)
     G.frame(x + 8, y + 4, 29, h - 8, T.c.green, 4)
     Icons.draw(p.icon, x + 11, y + h / 2 - 11, T.c.green, 0.9)
-    badge = { L("INTEGRADO"), T.c.green }
+    badge = p.badge or { L("INTEGRADO"), T.c.green }
   else
     G.cover(Covers.get(p), p, x + 8, y + 4, 29, h - 8, false, App.t)
     st = App.status(p)

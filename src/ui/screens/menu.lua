@@ -50,6 +50,15 @@ local SHINE = 0.7        -- brilho que passa na capa ao chegar
 function S:enter()
   self.ch_t = 0          -- animacao de entrada dos canais (layout "channels")
   self.xd_recent, self.xd_feat = nil, nil   -- painel verde (Neon Grid): relê os recentes
+  -- arquivos de port soltos na pasta ports (ex.: do Telegram): avisa uma vez por sessao
+  local PP = require("core.pendports")
+  if not PP.notified then
+    PP.notified = true
+    local okp = pcall(PP.scan)
+    if okp and PP.count() > 0 then
+      App.toast(string.format(require("lib.i18n").tr(L("%d port(s) na pasta ports prontos para instalar: veja em Meus Ports.")), PP.count()), "info")
+    end
+  end
   self.sel = self.sel or 1
   self.feat_i = self.feat_i or 1
   self.feat_t = 0

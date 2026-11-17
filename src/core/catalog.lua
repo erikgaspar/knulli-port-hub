@@ -370,6 +370,11 @@ local function new_ref()
   new_ref_cache = { n = n, day = today, ports = Catalog.ports, ref = ref }
   return ref
 end
+--- dia em que o port entrou no catalogo (campo "added", AAAA-MM-DD) ou nil
+function Catalog.added_day(p)
+  return p and day_num(p.added) or nil
+end
+
 function Catalog.is_new(p)
   if not p or p.builtin then return false end
   local a = day_num(p.added)

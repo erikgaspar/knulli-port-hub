@@ -99,7 +99,13 @@ function M.local_ports(catalog_ports)
   local out = {}
   for _, lp in ipairs(Scan.ports) do
     if not used[lp.script] then
-      local desc = L("Port encontrado no cartão SD, instalado fora da loja (") .. lp.source .. ").\n\n"
+      local src = require("core.installer").local_sources()[lp.script]
+      local AR = require("core.archives")
+      local origin = ""
+      for _, ln in ipairs(AR.credits_lines(src and src.credits)) do origin = origin .. ln .. "\n" end
+      if src and src.source then origin = origin .. AR.origin_text(src.source, src.credits and src.credits.link) .. "\n" end
+      if src and src.archive then origin = origin .. L("Arquivo: ") .. src.archive .. "\n" end
+      local desc = L("Port encontrado no cartão SD, instalado fora da loja (") .. lp.source .. ").\n\n" .. origin
         .. L("Script: ") .. lp.script .. (lp.dir and (L("\nPasta: ") .. lp.dir) or "")
         .. L("\n\nEle não está no catálogo da loja, por isso não pode ser baixado ou atualizado por aqui.")
       out[#out + 1] = {
@@ -107,7 +113,7 @@ function M.local_ports(catalog_ports)
         slug = U.slug("local_" .. lp.script),
         is_local = true,
         name = lp.title,
-        short = L("Instalado no console • ") .. lp.source,
+        short = L("Instalado no console • ") .. ((src and src.source) and (L("Telegram ") .. src.source) or lp.source),
         description = desc,
         category = L("No console"),
         category_id = "_local",
@@ -115,7 +121,7 @@ function M.local_ports(catalog_ports)
         size_label = "—",
         download_url = "",
         cover = lp.cover or "",
-        author = "", notes = "",
+        author = (src and src.credits and src.credits.developer) or "", notes = "",
         install_check = {}, local_items = lp.items,
       }
     end

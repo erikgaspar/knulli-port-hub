@@ -375,6 +375,10 @@ local function ask_delete_archive(app, path, name, extracted_body)
     buttons = {
       { label = L("EXCLUIR"), danger = true, fn = function()
         local ok = os.remove(path)
+        -- arquivo em partes: apaga as outras partes junto
+        for _, pt in ipairs(require("core.archives").parts(path)) do
+          if pt ~= path then os.remove(pt) end
+        end
         app.toast(ok and (name .. L(" excluído.")) or L("Não foi possível excluir o arquivo compactado."), ok and "ok" or "error")
         refresh()
       end },
@@ -384,6 +388,36 @@ local function ask_delete_archive(app, path, name, extracted_body)
   })
 end
 
+--- Arquivo com senha e nenhuma senha salva funcionou: abre o teclado do hub
+--- para digitar a senha e tenta de novo (o arquivo compactado e mantido).
+local function ask_password(app, p, jo, wrong)
+  local cur = app.current and app.current()
+  if app.dialog or (cur and cur.name == "textinput") then
+    app.toast(p.name .. L(" precisa de senha. Instale de novo para digitar a senha."), "warn")
+    return
+  end
+  app.push("textinput", {
+    title = L("Senha do arquivo"),
+    label = wrong and L("Senha incorreta. Digite de novo:")
+      or L("Nenhuma senha salva funcionou. Digite a senha do arquivo:"),
+    mode = "full", max = 64,
+    validate = function(v)
+      if v == "" then return false, L("Digite a senha.") end
+      return true
+    end,
+    on_ok = function(v)
+      local o = {}
+      for k, val in pairs(jo or {}) do o[k] = val end
+      o.password = v
+      app.install(p, o)
+    end,
+    on_cancel = function()
+      app.toast(L("Instalação cancelada. O arquivo compactado foi mantido."), "warn")
+    end,
+  })
+end
+O.ask_password = ask_password
+
 function O.on_install_finished(app, j)
   O._confirm = nil
   pcall(function() require("core.compat").invalidate() end)
@@ -391,6 +425,38 @@ function O.on_install_finished(app, j)
   app.update_free_space()
   app.on_catalog_changed()
   local jo0 = j.opts or {}
+  -- arquivo local com senha: pede a senha no teclado em vez de so mostrar o erro
+  if j.result == "error" and j.error_code == "encrypted" and jo0.local_file then
+    Installer.clear()
+    ask_password(app, p, jo0, jo0.password ~= nil)
+    return
+  end
+  -- senha digitada funcionou: pergunta se quer salvar no senhas.txt
+  if j.result == "done" and jo0.password and not jo0.pw_asked then
+    jo0.pw_asked = true
+    local A = require("core.archives")
+    if not A.is_saved(jo0.password) then
+      local pw = jo0.password
+      local function cont() O.on_install_finished(app, j) end
+      local cur = app.current and app.current()
+      if not app.dialog and not (cur and cur.name == "textinput") then
+        app.show_dialog({
+          title = L("Salvar senha?"), kind = "ok",
+          body = L("A senha funcionou! Quer salvar no senhas.txt para o hub usar sozinho nos próximos arquivos?"),
+          buttons = {
+            { label = L("SALVAR"), fn = function()
+              local ok = A.add_user_password(pw)
+              app.toast(ok and L("Senha salva no senhas.txt.") or L("Não foi possível salvar a senha."), ok and "ok" or "error")
+              cont()
+            end },
+            { label = L("NÃO SALVAR"), fn = cont },
+          },
+          cancel = cont,
+        })
+        return
+      end
+    end
+  end
   if j.background and j.result == "done" and jo0.ask_delete and jo0.local_file then
     -- extracao em segundo plano: a pergunta aparece assim que nao houver outra janela
     if not app.dialog then
@@ -440,8 +506,12 @@ function O.on_install_finished(app, j)
     return
   end
   if j.result == "done" then
-    local body = p.name .. L(" foi instalado em ") .. C.PORTS_DIR .. "." .. del_txt .. "\n\n"
-      .. (j.es_cover and L("Reinicie o EmulationStation para o jogo aparecer na lista de Ports com a capa.")
+    local extra = ""
+    for _, ln in ipairs(require("core.archives").credits_lines(j.credits)) do extra = extra .. "\n" .. ln end
+    if j.source then extra = extra .. "\n" .. require("core.archives").origin_text(j.source, j.credits and j.credits.link) end
+    if j.pack_cover then extra = extra .. "\n" .. L("Capa do pacote aplicada: ") .. (j.pack_cover:match("([^/]+)$") or "") end
+    local body = p.name .. L(" foi instalado em ") .. C.PORTS_DIR .. "." .. del_txt .. extra .. "\n\n"
+      .. ((j.es_cover or j.pack_cover) and L("Reinicie o EmulationStation para o jogo aparecer na lista de Ports com a capa.")
         or L("Reinicie o EmulationStation para o jogo aparecer na lista de Ports."))
     if p.requires_files then
       body = body .. L("\n\nAtenção: este port precisa dos arquivos do jogo original. Consulte as instruções do port.")
