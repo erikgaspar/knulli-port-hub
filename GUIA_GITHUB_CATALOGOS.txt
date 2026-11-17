@@ -1,4 +1,16 @@
 =====================================================================
+ AVISO (0.5.3 BETA em diante)
+ O projeto agora usa DOIS repositorios:
+   - liralflsti-wq/r36s-port-hub           PRIVADO: codigo-fonte
+   - liralflsti-wq/r36s-port-hub-catalogo  PUBLICO: ports.json,
+     temas.json, update.json e as Releases com os pacotes .zip
+ Tudo o que o console baixa fica no repositorio PUBLICO de catalogo.
+ Nos exemplos abaixo, troque "r36s-port-hub" por
+ "r36s-port-hub-catalogo" nos links raw e de Releases.
+ Para publicar, use ./publicar.sh (ports, temas, update, final).
+=====================================================================
+
+=====================================================================
  R36S PORT HUB - GUIA: PUBLICAR NO GITHUB E LIGAR OS CATALOGOS AO HUB
  Versao 0.3 BETA
 =====================================================================

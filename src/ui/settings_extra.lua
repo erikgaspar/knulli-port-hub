@@ -984,7 +984,7 @@ function X.about_category()
         desc = L("Apresentação do projeto, créditos, canal do YouTube e apoio ao projeto."),
         on_a = function() App.push("about") end },
       { kind = "action", label = L("Licenças"),
-        desc = L("Licenças dos componentes de terceiros incluídos no hub (pasta licenses)."),
+        desc = L("Licença do R36S PORT HUB e dos componentes de terceiros incluídos nele (pasta licenses)."),
         on_a = function() App.push("files", { path = C.APP_DIR .. "/licenses" }) end },
       { kind = "action", label = L("Aviso importante"),
         desc = L("O aviso legal mostrado ao abrir o hub: jogos, ports e BIOS pertencem aos seus autores."),

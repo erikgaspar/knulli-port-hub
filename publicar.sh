@@ -2,35 +2,49 @@
 # =============================================================================
 #  R36S PORT HUB - publicacao no GitHub com LINKS FIXOS
 #
+#  Dois repositorios (desde a 0.5.3):
+#    SLUG      (PRIVADO) -> codigo-fonte do hub
+#    CAT_SLUG  (PUBLICO) -> o que o console baixa: ports.json, temas.json,
+#                           update.json e as Releases com os pacotes .zip
+#  O codigo-fonte NAO e mais publicado em lugar publico.
+#
 #  Os links nao mudam nunca. A cada publicacao o arquivo por tras deles e
-#  substituido:
+#  substituido (todos no repositorio PUBLICO de catalogo):
 #
 #    update   -> releases/latest/download/R36S-PORT-HUB-update.zip
 #    completo -> releases/latest/download/R36S-PORT-HUB.zip
-#    fonte    -> releases/latest/download/R36S-PORT-HUB-codigo-fonte.zip
+#    ports    -> raw.githubusercontent.com/.../main/ports.json
 #    temas    -> raw.githubusercontent.com/.../main/temas.json
 #    metadados-> raw.githubusercontent.com/.../main/update.json
 #
 #  Uso:
 #    ./publicar.sh links                  mostra os links fixos
-#    ./publicar.sh setup   <pasta-final>  cria o repositorio e publica tudo
+#    ./publicar.sh setup   <pasta-final>  prepara o repo de catalogo e publica tudo
 #    ./publicar.sh update  <zip|pasta>    publica uma atualizacao (1 por vez)
-#    ./publicar.sh final   <zip|pasta>    publica o pacote completo + fonte
+#    ./publicar.sh final   <zip|pasta>    publica o pacote completo
 #    ./publicar.sh temas   <temas.json>   publica o catalogo de temas
+#    ./publicar.sh ports   <ports.json>   publica o catalogo de ports
+#
+#  Transicao (so enquanto o repositorio antigo ainda for publico):
+#    TRANSICAO=1 ./publicar.sh update <zip>
+#  publica a atualizacao TAMBEM nas Releases do repositorio antigo, para os
+#  consoles com versao <= 0.5.2 (que ainda olham para ele) receberem a 0.5.3.
 #
 #  Token: variavel GH_TOKEN/GITHUB_TOKEN ou arquivo ~/.config/r36s-port-hub/token
 #  (nunca fica dentro do repositorio).
 # =============================================================================
 set -euo pipefail
 
-SLUG="${R36S_SLUG:-liralflsti-wq/r36s-port-hub}"   # usuario/repositorio (troque com R36S_SLUG=...)
+SLUG="${R36S_SLUG:-liralflsti-wq/r36s-port-hub}"               # codigo (PRIVADO)
+CAT_SLUG="${R36S_CAT_SLUG:-liralflsti-wq/r36s-port-hub-catalogo}" # catalogo + releases (PUBLICO)
+REL_SLUG="$CAT_SLUG"                                              # onde ficam as Releases
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CAT_DIR="${R36S_CAT_DIR:-$(dirname "$ROOT")/r36s-port-hub-catalogo}"  # copia local do repo de catalogo
 DIST="$ROOT/dist"
 TOKEN_FILE="${R36S_TOKEN_FILE:-$HOME/.config/r36s-port-hub/token}"
 API="https://api.github.com"
 UP_NAME="R36S-PORT-HUB-update.zip"
 FULL_NAME="R36S-PORT-HUB.zip"
-SRC_NAME="R36S-PORT-HUB-codigo-fonte.zip"
 
 c()  { printf '\033[%sm%s\033[0m\n' "$1" "$2"; }
 ok() { c '1;32' "  ok  $*"; }
@@ -88,12 +102,13 @@ fsize()  { python3 -c 'import os,sys;print(os.path.getsize(sys.argv[1]))' "$1"; 
 show_links() {
   echo
   c '1;35' "  LINKS FIXOS (nunca mudam)"
-  echo   "  updates : https://github.com/$SLUG/releases/latest/download/$UP_NAME"
-  echo   "  completo: https://github.com/$SLUG/releases/latest/download/$FULL_NAME"
-  echo   "  fonte   : https://github.com/$SLUG/releases/latest/download/$SRC_NAME"
-  echo   "  temas   : https://raw.githubusercontent.com/$SLUG/main/temas.json"
-  echo   "  metadata: https://raw.githubusercontent.com/$SLUG/main/update.json"
-  echo   "  pagina  : https://github.com/$SLUG"
+  echo   "  updates : https://github.com/$CAT_SLUG/releases/latest/download/$UP_NAME"
+  echo   "  completo: https://github.com/$CAT_SLUG/releases/latest/download/$FULL_NAME"
+  echo   "  ports   : https://raw.githubusercontent.com/$CAT_SLUG/main/ports.json"
+  echo   "  temas   : https://raw.githubusercontent.com/$CAT_SLUG/main/temas.json"
+  echo   "  metadata: https://raw.githubusercontent.com/$CAT_SLUG/main/update.json"
+  echo   "  pagina  : https://github.com/$CAT_SLUG"
+  echo   "  codigo  : https://github.com/$SLUG (privado)"
   echo
 }
 
@@ -136,7 +151,7 @@ PY
 
 # ------------------------------------------------------------ release ------
 release_info() {  # release_info <tag> -> id
-  api GET "/repos/$SLUG/releases/tags/$1" | jget '.id'
+  api GET "/repos/$REL_SLUG/releases/tags/$1" | jget '.id'
 }
 
 drop_release() {  # apaga release e tag (para reaproveitar a mesma versao)
@@ -144,8 +159,8 @@ drop_release() {  # apaga release e tag (para reaproveitar a mesma versao)
   id="$(release_info "$tag")"
   [ -n "$id" ] || return 0
   info "removendo release antiga $tag (id $id)"
-  api DELETE "/repos/$SLUG/releases/$id" >/dev/null
-  api DELETE "/repos/$SLUG/git/refs/tags/$tag" >/dev/null || true
+  api DELETE "/repos/$REL_SLUG/releases/$id" >/dev/null
+  api DELETE "/repos/$REL_SLUG/git/refs/tags/$tag" >/dev/null || true
 }
 
 ensure_release() {  # ensure_release <tag> <nome> <corpo-md> -> id
@@ -156,12 +171,12 @@ ensure_release() {  # ensure_release <tag> <nome> <corpo-md> -> id
 import json, sys
 print(json.dumps({"tag_name": sys.argv[1], "name": sys.argv[2], "body": sys.argv[3],
                   "draft": False, "prerelease": False}))' "$tag" "$name" "$body")"
-  api POST "/repos/$SLUG/releases" "$payload" | jget '.id'
+  api POST "/repos/$REL_SLUG/releases" "$payload" | jget '.id'
 }
 
 upload_asset() {  # upload_asset <release_id> <arquivo> <nome-no-release>
   local rid="$1" file="$2" name="$3" resp code existing
-  existing="$(api GET "/repos/$SLUG/releases/$rid/assets?per_page=100" \
+  existing="$(api GET "/repos/$REL_SLUG/releases/$rid/assets?per_page=100" \
     | python3 -c '
 import sys, json
 name = sys.argv[1]
@@ -171,7 +186,7 @@ for a in json.load(sys.stdin):
 ' "$name")"
   if [ -n "$existing" ]; then
     info "substituindo anexo $name"
-    api DELETE "/repos/$SLUG/releases/assets/$existing" >/dev/null
+    api DELETE "/repos/$REL_SLUG/releases/assets/$existing" >/dev/null
   fi
   info "enviando $name ($(du -h "$file" | cut -f1))"
   resp="$(curl -sS -X POST \
@@ -179,7 +194,7 @@ for a in json.load(sys.stdin):
     -H "Accept: application/vnd.github+json" \
     -H "Content-Type: application/octet-stream" \
     --data-binary @"$file" \
-    "https://uploads.github.com/repos/$SLUG/releases/$rid/assets?name=$name")"
+    "https://uploads.github.com/repos/$REL_SLUG/releases/$rid/assets?name=$name")"
   code="$(printf '%s' "$resp" | python3 -c '
 import sys, json
 try:
@@ -194,7 +209,7 @@ except Exception:
 # ------------------------------------------------------------ update.json --
 write_update_json() {  # write_update_json <zip-update> <manifest-json>
   local z="$1" man="$2"
-  python3 - "$z" "$man" "$SLUG" > "$ROOT/update.json" <<'PY'
+  python3 - "$z" "$man" "$CAT_SLUG" > "$ROOT/update.json" <<'PY'
 import sys, json, hashlib, os
 z, man, slug = sys.argv[1], sys.argv[2], sys.argv[3]
 m = json.loads(man)
@@ -265,7 +280,7 @@ update_version_text() {  # update_version_text "0.4.5 BETA"
   local desc="v${label} — ${base}"
   local payload
   payload="$(python3 -c 'import json,sys; print(json.dumps({"description": sys.argv[1]}))' "$desc")"
-  if api PATCH "/repos/$SLUG" "$payload" >/dev/null 2>&1; then
+  if api PATCH "/repos/$CAT_SLUG" "$payload" >/dev/null 2>&1; then
     ok "descrição da versão atualizada para $label"
   else
     warn "não consegui atualizar a descrição do repositório"
@@ -286,6 +301,58 @@ printf 'dist/\nbuild/\n*.token\n.env\n/catalog.json\n/catalogos/\n/catalogo/\n/b
   ok "enviado para github.com/$SLUG"
 }
 
+# ------------------------------------------------------ repo de catalogo ----
+cat_init() {  # garante a copia local do repositorio PUBLICO de catalogo
+  if [ -z "$(api GET "/repos/$CAT_SLUG" | jget '.full_name')" ]; then
+    die "o repositorio $CAT_SLUG nao existe. Crie-o (Public, vazio) em github.com/new"
+  fi
+  if [ ! -d "$CAT_DIR/.git" ]; then
+    info "clonando $CAT_SLUG em $CAT_DIR"
+    git clone -q "https://x-access-token:$TOKEN@github.com/$CAT_SLUG.git" "$CAT_DIR" 2>/dev/null \
+      || { mkdir -p "$CAT_DIR"; git -C "$CAT_DIR" init -q -b main; }
+  fi
+  git -C "$CAT_DIR" config user.name  "R36S PORT HUB"
+  git -C "$CAT_DIR" config user.email "r36s-port-hub@users.noreply.github.com"
+  git -C "$CAT_DIR" remote remove origin 2>/dev/null || true
+  git -C "$CAT_DIR" remote add origin "https://x-access-token:$TOKEN@github.com/$CAT_SLUG.git"
+  git -C "$CAT_DIR" pull -q origin main 2>/dev/null || true
+}
+
+cat_push() {  # cat_push "mensagem" arquivo...   (copia para o repo de catalogo e envia)
+  local msg="$1"; shift
+  cat_init
+  local f
+  for f in "$@"; do
+    [ -f "$f" ] || die "nao achei: $f"
+    python3 -c 'import json,sys;json.load(open(sys.argv[1],encoding="utf-8-sig"))' "$f" \
+      || die "JSON invalido: $f"
+    cp "$f" "$CAT_DIR/$(basename "$f")"
+  done
+  git -C "$CAT_DIR" add -A
+  if git -C "$CAT_DIR" diff --cached --quiet; then
+    info "catalogo: nada novo para enviar"
+  else
+    git -C "$CAT_DIR" commit -q -m "$msg"
+    git -C "$CAT_DIR" push -q origin HEAD:main
+    ok "catalogo enviado para github.com/$CAT_SLUG"
+  fi
+}
+
+upload_update_old_repo() {  # TRANSICAO=1: repete a release no repositorio antigo
+  [ "${TRANSICAO:-0}" = "1" ] || return 0
+  local tag="$1" title="$2" body="$3" file="$4" rid
+  local vis; vis="$(api GET "/repos/$SLUG" | jget '.private')"
+  if [ "$vis" = "True" ] || [ "$vis" = "true" ]; then
+    warn "o repositorio antigo ja e privado; transicao ignorada"
+    return 0
+  fi
+  info "transicao: publicando tambem em $SLUG (consoles com 0.5.2 ou anterior)"
+  REL_SLUG="$SLUG"
+  rid="$(ensure_release "$tag" "$title" "$body")"
+  [ -n "$rid" ] && upload_asset "$rid" "$file" "$UP_NAME" || warn "falhou a release de transicao"
+  REL_SLUG="$CAT_SLUG"
+}
+
 # ------------------------------------------------------------- comandos ----
 cmd_links() { show_links; }
 
@@ -295,33 +362,16 @@ cmd_setup() {
   local user
   user="$(api GET /user | jget '.login')"
   [ -n "$user" ] || die "token invalido"
-  [ "$SLUG" = "USUARIO/r36s-port-hub" ] && die "defina o repositorio: R36S_SLUG=usuario/repo ./publicar.sh setup ..."
   info "autenticado como $user"
-  if [ -z "$(api GET "/repos/$SLUG" | jget '.full_name')" ]; then
-    api POST /user/repos "$(python3 -c '
-import json, sys
-print(json.dumps({"name": sys.argv[1].split("/")[1], "private": False,
-  "description": "Central de conteúdo para o console R36S (dArkOSRE): baixe e instale ports de jogos, BIOS de emuladores e ferramentas direto no console, com downloads em segundo plano, PortMaster, temas, Wi-Fi, FTP e cuidados com o microSD. Feito em LÖVE, em PT-BR, EN e RU.",
-  "has_issues": True, "has_wiki": False, "has_projects": False}))' "$SLUG")" >/dev/null
-    ok "repositorio criado"
-  else
-    info "repositorio ja existe"
-  fi
-  # topicos (ajudam a achar o repositorio nas buscas)
-  api PUT "/repos/$SLUG/topics" '{"names":["r36s","darkos","arkos","portmaster","love2d","retro-handheld","emulation","bios"]}' >/dev/null \
+  # topicos no repositorio publico (ajudam a achar o projeto nas buscas)
+  api PUT "/repos/$CAT_SLUG/topics" '{"names":["r36s","darkos","arkos","portmaster","love2d","retro-handheld","emulation","bios"]}' >/dev/null \
     && ok "topicos atualizados" || warn "nao consegui atualizar os topicos"
-  # links reais no README/update.json
-  sed -i "s|USUARIO/r36s-port-hub|$SLUG|g" "$ROOT/README.md" 2>/dev/null || true
-  sed -i "s|USUARIO/r36s-port-hub|$SLUG|g" "$ROOT/update.json" 2>/dev/null || true
 
-  git_init
-  local up full src
+  local up full
   up="$(pick_file "$final_dir/UPDATE" 'R36S-PORT-HUB-update*.zip' '*.zip')" 2>/dev/null || true
   if [ -z "${up:-}" ]; then up="$(pick_file "$final_dir" 'R36S-PORT-HUB-update*.zip')"; fi
   full="$(pick_file "$final_dir/FINAL" 'R36S-PORT-HUB-BETA.zip' 'R36S-PORT-HUB.zip')" \
     || full="$(pick_file "$final_dir" 'R36S-PORT-HUB*.zip' | head -1)"
-  src="$(pick_file "$final_dir/FINAL" '*codigo-fonte*.zip')" \
-    || src="$(pick_file "$final_dir" '*codigo-fonte*.zip')"
 
   local tjson; tjson="$(pick_file "$final_dir" 'temas.json')"
   cp "$tjson" "$ROOT/temas.json"
@@ -335,16 +385,16 @@ print(json.dumps({"name": sys.argv[1].split("/")[1], "private": False,
   mkdir -p "$DIST"
   cp "$up"   "$DIST/$UP_NAME"
   cp "$full" "$DIST/$FULL_NAME"
-  cp "$src"  "$DIST/$SRC_NAME"
   write_update_json "$DIST/$UP_NAME" "$man"
 
+  git_init
   update_version_text "$label"
   git_push "R36S PORT HUB $label"
+  cat_push "R36S PORT HUB $label" "$ROOT/ports.json" "$ROOT/temas.json" "$ROOT/update.json"
   local rid; rid="$(ensure_release "v$ver" "R36S PORT HUB $label" "$body")"
   [ -n "$rid" ] || die "nao consegui criar a release"
   upload_asset "$rid" "$DIST/$UP_NAME"   "$UP_NAME"
   upload_asset "$rid" "$DIST/$FULL_NAME" "$FULL_NAME"
-  upload_asset "$rid" "$DIST/$SRC_NAME"  "$SRC_NAME"
   ok "publicado: v$ver"
   show_links
 }
@@ -365,11 +415,10 @@ cmd_update() {
   cp "$zip" "$DIST/$UP_NAME"
   write_update_json "$DIST/$UP_NAME" "$man"
 
-  # anexos do pacote completo/fonte da versao anterior continuam validos:
-  # a nova release recebe o update; se existir a mesma versao, os anexos sao refeitos
   git_init
   update_version_text "$label"
   git_push "Atualização $label"
+  cat_push "Atualização $label" "$ROOT/update.json"
 
   rid="$(release_info "v$ver")"
   if [ -n "$rid" ]; then
@@ -379,6 +428,7 @@ cmd_update() {
   fi
   [ -n "$rid" ] || die "nao consegui criar a release"
   upload_asset "$rid" "$DIST/$UP_NAME" "$UP_NAME"
+  upload_update_old_repo "v$ver" "R36S PORT HUB $label" "$body" "$DIST/$UP_NAME"
   ok "publicado: v$ver"
   show_links
 }
@@ -386,15 +436,9 @@ cmd_update() {
 cmd_final() {
   local arg="$1"
   load_token
-  local full src ver label body rid tag man
+  local full ver label body rid tag man
   full="$(pick_file "$arg" 'R36S-PORT-HUB-BETA.zip' 'R36S-PORT-HUB.zip' '*.zip')"
   info "pacote completo: $(basename "$full")"
-
-  # codigo-fonte sempre refeito a partir do repositorio local
-  mkdir -p "$DIST"; rm -f "$DIST/$SRC_NAME"
-  ( cd "$ROOT" && git archive --format=zip --prefix="R36S-PORT-HUB-codigo-fonte/" -o "$DIST/$SRC_NAME" HEAD ) \
-    || die "git archive falhou (faca o setup primeiro)"
-  ok "codigo-fonte gerado"
 
   ver="$(grep -oP 'C\.VERSION_NUM\s*=\s*"\K[^"]+' "$ROOT/src/config.lua" | head -1)"
   label="$(grep -oP 'C\.VERSION\s*=\s*L\("\K[^"]+' "$ROOT/src/config.lua" | head -1)"
@@ -406,10 +450,10 @@ cmd_final() {
     rid="$(ensure_release "$tag" "R36S PORT HUB $label" "$(release_body "$man")")"
   fi
   [ -n "$rid" ] || die "nao consegui criar a release"
+  mkdir -p "$DIST"
   cp "$full" "$DIST/$FULL_NAME"
   upload_asset "$rid" "$DIST/$FULL_NAME" "$FULL_NAME"
-  upload_asset "$rid" "$DIST/$SRC_NAME"  "$SRC_NAME"
-  ok "pacote completo e fonte publicados em $tag"
+  ok "pacote completo publicado em $tag (codigo-fonte nao e publicado)"
   show_links
 }
 
@@ -420,10 +464,21 @@ cmd_temas() {
   f="$(pick_file "$arg" 'temas.json' '*.json')"
   python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$f" \
     || die "JSON invalido: $f"
-  cp "$f" "$ROOT/temas.json"
+  [ "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" = "$ROOT/temas.json" ] || cp "$f" "$ROOT/temas.json"
   ok "temas.json atualizado ($(jget '.title' < "$f"); $(jget '.updated' < "$f"))"
-  git_init
-  git_push "temas.json $(jget '.updated' < "$f")"
+  cat_push "temas.json $(jget '.updated' < "$f")" "$ROOT/temas.json"
+  show_links
+}
+
+cmd_ports() {
+  local arg="$1"
+  load_token
+  local f
+  f="$(pick_file "$arg" 'ports.json' '*.json')"
+  python3 -c 'import json,sys;json.load(open(sys.argv[1],encoding="utf-8-sig"))' "$f" \
+    || die "JSON invalido: $f"
+  [ "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" = "$ROOT/ports.json" ] || cp "$f" "$ROOT/ports.json"
+  cat_push "Catálogo de ports $(date +%Y-%m-%d)" "$ROOT/ports.json"
   show_links
 }
 
@@ -434,5 +489,6 @@ case "${1:-links}" in
   update) [ $# -ge 2 ] || die "uso: ./publicar.sh update <zip|pasta>";   cmd_update "$2" ;;
   final)  [ $# -ge 2 ] || die "uso: ./publicar.sh final <zip|pasta>";    cmd_final "$2" ;;
   temas)  [ $# -ge 2 ] || die "uso: ./publicar.sh temas <temas.json>";   cmd_temas "$2" ;;
-  *)      die "comando desconhecido: $1 (use links|setup|update|final|temas)" ;;
+  ports)  [ $# -ge 2 ] || die "uso: ./publicar.sh ports <ports.json>";   cmd_ports "$2" ;;
+  *)      die "comando desconhecido: $1 (use links|setup|update|final|temas|ports)" ;;
 esac

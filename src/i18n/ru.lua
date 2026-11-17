@@ -3212,7 +3212,7 @@ return {
   ["Jogos acessados"] = "Запущенные игры",
   ["Jogos acessados recentemente"] = "Недавно запущенные игры",
   ["Licenças"] = "Лицензии",
-  ["Licenças dos componentes de terceiros incluídos no hub (pasta licenses)."] = "Лицензии сторонних компонентов, входящих в хаб (папка licenses).",
+  ["Licença do R36S PORT HUB e dos componentes de terceiros incluídos nele (pasta licenses)."] = "Лицензия R36S PORT HUB и сторонних компонентов, входящих в него (папка licenses).",
   ["Liga ou desliga o servidor FTP do hub. Precisa de Wi-Fi. Exige usuário e senha."] = "Включает или выключает FTP-сервер хаба. Нужен Wi-Fi. Требуются имя пользователя и пароль.",
   ["Limpar favoritos"] = "Очистить избранное",
   ["Limpar favoritos?"] = "Очистить избранное?",

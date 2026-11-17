@@ -3212,7 +3212,7 @@ return {
   ["Jogos acessados"] = "Played games",
   ["Jogos acessados recentemente"] = "Recently played games",
   ["Licenças"] = "Licenses",
-  ["Licenças dos componentes de terceiros incluídos no hub (pasta licenses)."] = "Licenses of the third-party components included in the hub (licenses folder).",
+  ["Licença do R36S PORT HUB e dos componentes de terceiros incluídos nele (pasta licenses)."] = "License of R36S PORT HUB and of the third-party components included in it (licenses folder).",
   ["Liga ou desliga o servidor FTP do hub. Precisa de Wi-Fi. Exige usuário e senha."] = "Turns the hub FTP server on or off. Needs Wi-Fi. Requires a username and password.",
   ["Limpar favoritos"] = "Clear favorites",
   ["Limpar favoritos?"] = "Clear favorites?",

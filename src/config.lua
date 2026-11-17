@@ -8,8 +8,8 @@ local L = require("lib.i18n").L
 local C = {}
 
 C.APP_NAME = L("R36S PORT HUB")
-C.VERSION = L("0.5.2 BETA")       -- texto exibido
-C.VERSION_NUM = "0.5.2"        -- numero usado para comparar com a atualizacao
+C.VERSION = L("0.5.3 BETA")       -- texto exibido
+C.VERSION_NUM = "0.5.3"        -- numero usado para comparar com a atualizacao
 -- R36 Hub OS: o hub e a interface principal do sistema (supervisor exporta R36HUBOS=1)
 C.OS_MODE = os.getenv("R36HUBOS") == "1"
 C.OS_NAME = "R36 Hub OS"
@@ -21,7 +21,7 @@ C.OS_VERSION = os.getenv("R36HUBOS_VERSION") or ""
 -- https://github.com/USUARIO/REPO, usa a ultima Release) ou de um JSON
 -- { "version", "url", "sha256", "notes" }.
 -- Tambem pode ser definido em <pasta do app>/update_url.txt (sobrescreve este).
-C.UPDATE_URL = "https://github.com/liralflsti-wq/r36s-port-hub/releases/latest/download/R36S-PORT-HUB-update.zip"
+C.UPDATE_URL = "https://github.com/liralflsti-wq/r36s-port-hub-catalogo/releases/latest/download/R36S-PORT-HUB-update.zip"
 
 -- Catalogo de temas (Configuracoes > Temas > Baixar novos temas). Vazio ate o
 -- repositorio de temas ser publicado. Tambem pode ser definido em
@@ -35,9 +35,10 @@ C.ES_THEMES_URL = ""
 C.TAGLINE = L("Ports de jogos e utilitários para o console R36S, criados por fãs e para fãs.")
 
 -- Endereco do catalogo online (JSON) com os ports de jogos e utilitarios.
--- Catalogo oficial no GitHub do projeto (link "raw"). O ultimo baixado fica em
+-- Catalogo oficial no repositorio PUBLICO de catalogo (r36s-port-hub-catalogo);
+-- o codigo do hub fica em outro repositorio, privado. Link "raw". O ultimo baixado fica em
 -- cache para uso sem internet. Pode ser trocado por <pasta do app>/catalog_url.txt.
-C.CATALOG_URL = "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub/main/ports.json"
+C.CATALOG_URL = "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub-catalogo/main/ports.json"
 
 -- Central de Conteudo > BIOS do Sistema: pacote de BIOS (link direto do arquivo).
 -- Link oficial do projeto. Pode ser trocado em <pasta do app>/bios_url.txt

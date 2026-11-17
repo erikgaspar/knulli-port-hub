@@ -45,24 +45,23 @@ Estes links **nunca mudam**: cada atualização substitui o arquivo por trás de
 
 | O que é | Link direto |
 |---|---|
-| 🔄 **Atualização** (pacote incremental, o mais recente) | [`R36S-PORT-HUB-update.zip`](https://github.com/liralflsti-wq/r36s-port-hub/releases/latest/download/R36S-PORT-HUB-update.zip) |
-| 📦 **Pacote completo** (instalação do zero) | [`R36S-PORT-HUB.zip`](https://github.com/liralflsti-wq/r36s-port-hub/releases/latest/download/R36S-PORT-HUB.zip) |
-| 🧾 **Código-fonte** | [`R36S-PORT-HUB-codigo-fonte.zip`](https://github.com/liralflsti-wq/r36s-port-hub/releases/latest/download/R36S-PORT-HUB-codigo-fonte.zip) |
-| 🖼️ **Catálogo de temas** (`temas.json`) | [`temas.json`](https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub/main/temas.json) |
+| 🔄 **Atualização** (pacote incremental, o mais recente) | [`R36S-PORT-HUB-update.zip`](https://github.com/liralflsti-wq/r36s-port-hub-catalogo/releases/latest/download/R36S-PORT-HUB-update.zip) |
+| 📦 **Pacote completo** (instalação do zero) | [`R36S-PORT-HUB.zip`](https://github.com/liralflsti-wq/r36s-port-hub-catalogo/releases/latest/download/R36S-PORT-HUB.zip) |
+| 🖼️ **Catálogo de temas** (`temas.json`) | [`temas.json`](https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub-catalogo/main/temas.json) |
 
 Para usar com `curl` / `wget` no console:
 
 ```sh
 # atualização (baixa o pacote mais recente para a pasta update)
 wget -O /roms/ports/update/R36S-PORT-HUB-update.zip \
-  https://github.com/liralflsti-wq/r36s-port-hub/releases/latest/download/R36S-PORT-HUB-update.zip
+  https://github.com/liralflsti-wq/r36s-port-hub-catalogo/releases/latest/download/R36S-PORT-HUB-update.zip
 
 # apontar a Loja de Temas para o catálogo online (link fixo, uma linha só)
-echo "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub/main/temas.json" \
+echo "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub-catalogo/main/temas.json" \
   > /roms/ports/r36sporthub/es_themes_url.txt
 
 # apontar as atualizações do hub para este repositório
-echo "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub/main/update.json" \
+echo "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub-catalogo/main/update.json" \
   > /roms/ports/r36sporthub/update_url.txt
 ```
 
@@ -114,7 +113,7 @@ echo "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub/main/update.
 
 ## 🚀 Instalação no R36S
 
-1. Baixe `R36S-PORT-HUB.zip` na página de **Releases** (ou use o [link fixo](https://github.com/liralflsti-wq/r36s-port-hub/releases/latest/download/R36S-PORT-HUB.zip)).
+1. Baixe `R36S-PORT-HUB.zip` na página de **Releases** (ou use o [link fixo](https://github.com/liralflsti-wq/r36s-port-hub-catalogo/releases/latest/download/R36S-PORT-HUB.zip)).
 2. Copie o conteúdo para a pasta `ports` do cartão (`/roms/ports`, ou `/roms2/ports` com dois cartões):
    ```
    /roms/ports/R36S PORT HUB.sh
@@ -194,18 +193,13 @@ Gerar o pacote: `tools/build.sh` → `build/R36S-PORT-HUB-BETA.zip`.
 
 ## Licença
 
-Copyright (C) 2026 Lag do Lira (@lagdolira / liralflsti-wq)
+Copyright (C) 2026 Lag do Lira (@lagdolira / liralflsti-wq). Todos os direitos reservados.
 
-O código do R36S PORT HUB é distribuído sob a **GNU General Public License v3.0**. Veja o arquivo [LICENSE](LICENSE).
-
-Você pode usar, modificar e redistribuir o código, desde que o seu projeto também seja distribuído sob a GPL-3.0, com o código-fonte disponível e este aviso de autoria mantido.
+A partir da versão **0.5.3 BETA**, o R36S PORT HUB usa uma **licença própria** (veja [LICENSE](LICENSE)): o uso no console é livre e gratuito, inclusive para mostrar o hub em vídeos e transmissões. Copiar, modificar, redistribuir fora dos links oficiais, reaproveitar o código em outro projeto ou vender precisa de autorização do autor. Versões anteriores continuam sob a licença com que foram publicadas.
 
 ### Nome e marca
 
-A licença cobre **apenas o código**. O nome "R36S PORT HUB", o logo e a marca **Lag do Lira** não estão licenciados e não podem ser usados em outros projetos sem autorização.
-
-Se você usar este código no seu projeto, pedimos que inclua no README e na tela "Sobre" um crédito como:
-"Baseado no R36S PORT HUB, por Lag do Lira — youtube.com/@lagdolira"
+O nome "R36S PORT HUB", o logo e a marca **Lag do Lira** não podem ser usados em outros projetos sem autorização.
 
 ### Conteúdo de terceiros
 
