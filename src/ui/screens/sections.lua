@@ -15,6 +15,10 @@ local Tools = require("core.tools")
 
 local S = {}
 
+-- Tema Premium: Central com faixa EM DESTAQUE, abas e grade de capas (ui/premium/central.lua)
+local function premium() return T.style.layout == "premium" end
+local function PC() return require("ui.premium.central") end
+
 local INFO = {
   games = { color = T.c.accent, desc = L("Jogos portados para o R36S. Detalhes, download e instalação.") },
   bios = { color = T.c.yellow, desc = L("Downloads, verificação e instalação de BIOS para emuladores.") },
@@ -82,7 +86,16 @@ function S:bios_label()
   return string.format(L("%d OK  •  %d AUSENTES"), n.installed or 0, miss), T.c.yellow
 end
 
+function S:update(dt)
+  if premium() then PC().update(self, dt) end
+end
+
+-- catalogo novo ou volta de outra tela: o Premium refaz as listas (os outros temas nao usam)
+function S:on_catalog() if self.pc then PC().invalidate(self) end end
+function S:resume() if self.pc then PC().invalidate(self) end end
+
 function S:draw()
+  if premium() then return PC().draw(self) end
   G.header(L("Central de Conteúdo"))
   G.text_fit(T.f.small, L("Ports de Jogos, BIOS, Ports Utilitários e Ferramentas"),
     math.max(14, (T.W - T.f.small:getWidth(require("lib.i18n").tr(L("Ports de Jogos, BIOS, Ports Utilitários e Ferramentas")))) / 2), 47, T.W - 28, T.c.dim)
@@ -147,6 +160,7 @@ function S:draw()
 end
 
 function S:action(act)
+  if premium() then return PC().action(self, act) end
   if act == "up" then self.row = 1
   elseif act == "down" then self.row = 2
   elseif act == "left" then

@@ -125,6 +125,9 @@ local function normalize_port(raw, idx, cat_names)
   p.origin = str(raw.source or raw.origem)
   p.file_type = str(raw.file_type or raw.formato):upper()
   p.cover = build_url(raw, { "cover", "cover_url", "capa", "image" })
+  -- arte larga opcional (tema Premium: CONTINUAR, EM DESTAQUE). Sem ela, core/heroart.lua
+  -- procura na Steam pelo nome
+  p.hero = build_url(raw, { "hero", "hero_url", "banner" })
   p.sha256 = str(raw.sha256):lower()
   p.md5 = str(raw.md5):lower()
   -- Knulli Port Hub: situacao no RG35XXH (catalogo extra)

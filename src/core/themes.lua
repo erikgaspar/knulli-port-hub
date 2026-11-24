@@ -17,6 +17,12 @@ local M = { list = {}, current = "default", DEFAULT = "default" }
 -- tema da primeira abertura (sem escolha salva): o Tema Padrao (original do hub).
 -- Ele tambem e a reserva quando um tema falha.
 M.FIRST = "default"
+-- Knulli Port Hub: o tema Premium e o da primeira abertura (e de quem esta no
+-- Tema Padrao sem te-lo escolhido de proposito; ver M.init). So existe no Knulli.
+M.PREMIUM = "premium"
+if C.KNULLI then M.FIRST = M.PREMIUM end
+-- escolha feita pelo usuario na tela de temas (marca que o tema salvo foi de proposito)
+local PICKED = "theme_picked.txt"
 -- ids antigos -> ids atuais (quem usava o tema antigo continua com ele, ja renomeado)
 M.ALIASES = { xbox = "neongrid" }
 local function resolve(id) return M.ALIASES[id] or id end
@@ -51,12 +57,15 @@ local function load_def(dir, builtin)
     if c then th.buttons[k] = c end
   end
   local st = type(d.style) == "table" and d.style or {}
-  local BGS = { modern = true, neongrid = true, wii = true, pastel = true, xdash = true }
+  local BGS = { modern = true, neongrid = true, wii = true, pastel = true, xdash = true, premium = true }
   th.style.background = BGS[st.background] and st.background or "retro"
   -- layout da tela inicial: "channels" (grade de canais: Wii Blue e NEON GRID),
   -- "dashboard" (painel NEON GRID antigo) ou o classico (lista)
-  local LAYS = { dashboard = true, channels = true, carousel = true, xdash = true }
+  -- "premium" (Knulli): barra lateral, cartao CONTINUAR e grades de capas (ui/premium/)
+  local LAYS = { dashboard = true, channels = true, carousel = true, xdash = true, premium = true }
   th.style.layout = LAYS[st.layout or ""] and st.layout or nil
+  -- familia das fontes de texto: "inter" (Premium) ou a original
+  th.style.font = (st.font == "inter") and "inter" or nil
   -- listas de ports: "grid" = grade de capas com o port escolhido em destaque (Neon Grid)
   th.style.list = (st.list == "grid") and "grid" or nil
   -- barras do topo e do rodape: "pill" = pilulas brancas flutuantes (Pastel Pop)
@@ -71,7 +80,7 @@ local function load_def(dir, builtin)
   -- foco (cartao selecionado): cor e efeito ("soft" = halo suave e leve
   -- aumento; "neon" = contorno luminoso e cantos de mira)
   th.style.focus = T.parse_hex(st.focus) or th.colors.accent
-  local EFX = { neon = true, soft = true, pop = true, glow = true }
+  local EFX = { neon = true, soft = true, pop = true, glow = true, premium = true }
   th.style.effect = EFX[st.effect or ""] and st.effect or nil
   th.style.round = U.clamp(tonumber(st.round) or 1, 0, 1.5)
   th.style.glow = T.parse_hex(st.glow) or th.colors.accent
@@ -98,8 +107,10 @@ function M.scan()
     end
   end
   -- inclusos: Pastel Pop, Wii Blue, Neon Grid e Padrao primeiro (nessa ordem), depois os outros
+  -- (Knulli: Premium antes de todos; no R36S ele nao aparece)
   local FIXED = { "pastel", "wiiblue", "neongrid", "default" }
-  local fixed = {}
+  if C.KNULLI then table.insert(FIXED, 1, M.PREMIUM) end
+  local fixed = { [M.PREMIUM] = true }
   for _, n in ipairs(FIXED) do
     fixed[n] = true
     if love.filesystem.getInfo(BUILTIN_DIR .. "/" .. n, "directory") then add(BUILTIN_DIR .. "/" .. n, true) end
@@ -120,8 +131,14 @@ function M.apply(id, save)
   if not th then return false, L("tema não encontrado") end
   T.apply_palette(th.colors, th.buttons, th.style)
   require("ui.gfx").build_background()
+  -- Premium: grades de capas maiores (mais capas na memoria; os outros temas usam o limite normal)
+  local okc, Covers = pcall(require, "core.covers")
+  if okc and type(Covers) == "table" then Covers.max = (th.style.layout == "premium") and 36 or nil end
   M.current = id
-  if save then pcall(love.filesystem.write, PREF, id) end
+  if save then
+    pcall(love.filesystem.write, PREF, id)
+    pcall(love.filesystem.write, PICKED, "1")
+  end
   return true
 end
 
@@ -138,11 +155,17 @@ function M.init()
     saved = resolve(saved)
     pcall(love.filesystem.write, PREF, saved)
   end
+  -- Knulli: quem esta no Tema Padrao sem te-lo escolhido de proposito passa ao Premium
+  -- (sem gravar: escolher qualquer tema na tela de temas fica valendo)
+  if C.KNULLI and saved == M.DEFAULT and M.by_id[M.PREMIUM] and not love.filesystem.getInfo(PICKED) then
+    saved = M.PREMIUM
+  end
   if saved ~= M.DEFAULT then
     local applied = M.apply(saved, false)
     if applied then return nil end
     U.log("tema salvo indisponivel:", saved)
-    M.apply(M.DEFAULT, true)
+    M.apply(M.DEFAULT, false)
+    pcall(love.filesystem.write, PREF, M.DEFAULT)   -- (sem marcar como escolha do usuario)
     return L("O tema escolhido não pôde ser carregado. Usando o Tema Padrão.")
   end
   if not M.apply(M.DEFAULT, false) then

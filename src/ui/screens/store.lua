@@ -18,6 +18,10 @@ local CV = require("ui.coverview")
 
 local S = {}
 
+-- Tema Premium: grade de capas com abas em pilulas (ui/premium/lists.lua)
+local function premium() return T.style.layout == "premium" end
+local function PL() return require("ui.premium.lists") end
+
 local ROW_H, LIST_Y, LIST_X, LIST_W = 50, 84, 12, 356
 local VISIBLE = 7
 
@@ -232,6 +236,7 @@ function S:draw_preview()
 end
 
 function S:update(dt)
+  if premium() then PL().update(self, dt) end
   if CV.active() then CV.update(self, self.sel, dt) end
 end
 
@@ -335,6 +340,7 @@ function S:draw_grid()
 end
 
 function S:draw()
+  if premium() then return PL().draw(self) end
   local right = string.format(L("%d de %d"), #self.items > 0 and self.sel or 0, #self.items)
   G.header(self:title(), right)
   self:draw_tabs()
@@ -372,6 +378,7 @@ function S:switch_tab(d)
 end
 
 function S:action(act)
+  if premium() and PL().action(self, act) then return end
   local n = #self.items
   if CG.active() and n > 0 and (act == "up" or act == "down" or act == "left" or act == "right") then
     -- grade de capas: esquerda/direita andam 1, cima/baixo uma fileira

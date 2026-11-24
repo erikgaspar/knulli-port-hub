@@ -186,7 +186,16 @@ function G.wrap(font, s, w)
 end
 
 --- Etiqueta arredondada (ex.: INSTALADO, categoria)
+-- Tema Premium: componentes proprios (ui/premium/style.lua); os outros temas
+-- nunca entram nesses desvios
+local function premium() return T.style.layout == "premium" end
+
 function G.tag(s, x, y, bg, fg, font)
+  if premium() and (font == nil or font == T.f.pix8) then
+    -- etiqueta em Inter (sem a fonte pixelada), mesma posicao e altura parecida
+    local PS = require("ui.premium.style")
+    return PS.pill(U.upper(I18N.tr(s)), x, y, { font = PS.font("b", 10, true), bg = bg, fg = fg or T.c.bg0, px = 6, h = 16 })
+  end
   font = font or T.f.pix8
   s = I18N.tr(s)
   local w = font:getWidth(s) + 12
@@ -206,6 +215,7 @@ end
 
 --- Botao do controle desenhado (circulo com letra)
 function G.button_icon(btn, x, y, override)
+  if premium() and not override then return require("ui.premium.style").glyph(btn, x - 1, y - 1, 18) end
   local c = override or T.btn[btn] or T.c.dim
   if btn == "a" or btn == "b" or btn == "x" or btn == "y" then
     G.color(c)
@@ -248,6 +258,7 @@ end
 
 --- Barra de dicas de botoes no rodape (maxx: onde as dicas precisam terminar)
 function G.hints(list, y, maxx)
+  if premium() and (y == nil or y == T.H - 26) and not maxx then return require("ui.premium.style").footer(list) end
   y = y or (T.H - 26)
   maxx = maxx or (T.W - 10)
   if T.style.chrome == "pill" then
@@ -519,6 +530,13 @@ function G.build_background()
   if G.bg and G.bg.release then G.bg:release() end
   local cv = lg.newCanvas(T.W, T.H)
   lg.setCanvas(cv)
+  if T.style.background == "premium" then
+    -- Premium: fundo solido (os cantos das imagens usam a mesma cor)
+    lg.clear(T.c.bg0)
+    lg.setCanvas()
+    G.bg = cv
+    return
+  end
   if T.style.background == "pastel" then
     background_pastel(cv)
     lg.setCanvas()
@@ -673,6 +691,16 @@ function G.card(x, y, w, h, on, k, r, tint)
   r = r or 10
   local st, cd = T.style, T.style.card
   local fc = st.focus or T.c.accent
+  if st.effect == "premium" then
+    -- Premium: superficie lisa, foco = borda de 2 px no acento e leve aumento (1.03)
+    local PS = require("ui.premium.style")
+    x, y, w, h = PS.grow(x, y, w, h, k)
+    r = (r or 10) + 2
+    PS.rect(x, y, w, h, on and T.c.bg2 or (cd and cd.fill or T.c.bg1), r)
+    if tint then PS.frame(x, y, w, h, tint, r, 1, 0.6) end
+    if k > 0 then PS.focus(x, y, w, h, r, k) end
+    return G.card_palette(on), x, y, w, h
+  end
   if st.effect == "soft" and k > 0 then
     local g = 3 * k
     x, y, w, h = x - g, y - g, w + 2 * g, h + 2 * g
@@ -732,6 +760,7 @@ end
 
 --- Cabecalho padrao das telas da loja
 function G.header(title, right)
+  if premium() then return require("ui.premium.style").header(title, right) end
   if T.style.chrome == "pill" then
     G.rect(8, 6, T.W - 16, 36, T.c.shadow, 18)
     G.rect(8, 4, T.W - 16, 36, T.c.bg1, 18)

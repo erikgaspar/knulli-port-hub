@@ -16,7 +16,8 @@ local S = {}
 -- Layouts alternativos da tela inicial (carregados so quando o tema usa):
 --   "channels"  -> ui/channels.lua  (grade de canais: Wii Blue e Neon Grid)
 --   "dashboard" -> ui/neon_dash.lua (painel NEON GRID antigo)
-local LAYOUTS = { channels = "ui.channels", dashboard = "ui.neon_dash", carousel = "ui.carousel", xdash = "ui.xdash" }
+local LAYOUTS = { channels = "ui.channels", dashboard = "ui.neon_dash", carousel = "ui.carousel", xdash = "ui.xdash",
+  premium = "ui.premium.home" }   -- Premium (Knulli): barra lateral + CONTINUAR
 local function dash()
   local mod = LAYOUTS[T.style.layout or ""]
   if not mod then return nil end

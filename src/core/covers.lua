@@ -6,6 +6,7 @@ local U = require("lib.util")
 local Fetcher = require("core.fetcher")
 
 local Covers = { mem = {}, order = {}, state = {}, dir = "covers" }
+-- Covers.max: limite de capas na memoria definido pelo tema (Premium: grade maior); nil = C.COVER_CACHE_MAX
 
 function Covers.init()
   love.filesystem.createDirectory(Covers.dir)
@@ -26,7 +27,7 @@ local function touch(key)
     if k == key then table.remove(Covers.order, i); break end
   end
   table.insert(Covers.order, key)
-  while #Covers.order > C.COVER_CACHE_MAX do
+  while #Covers.order > (Covers.max or C.COVER_CACHE_MAX) do
     local old = table.remove(Covers.order, 1)
     local img = Covers.mem[old]
     if img and img.release then img:release() end

@@ -64,7 +64,11 @@ function T.apply_palette(colors, buttons, style)
       T.btn[k][1], T.btn[k][2], T.btn[k][3], T.btn[k][4] = v[1], v[2], v[3], v[4] or 1
     end
   end
-  if style then T.style = style end
+  if style then
+    T.style = style
+    -- o tema pode trocar a familia das fontes de texto (ex.: Inter no Premium)
+    if T.set_family then T.set_family(style.font) end
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -82,8 +86,30 @@ local TEXT_FONTS = {
   small = { REG, 12, CYR, 0 }, body = { REG, 14, CYR, -1 }, bodyb = { BOLD, 14, CYRB, -1 },
   h3 = { BOLD, 16, CYRB, -1 }, h2 = { BOLD, 20, CYRB, -1 }, h1 = { BOLD, 26, CYRB, -1 },
 }
+-- familias de fonte do texto: o tema escolhe (style.font). "chakra" e a original.
+-- Inter (tema Premium): latim, acentos e cirilico no mesmo arquivo (sem reserva).
+local INTER = "assets/fonts/Inter-Regular.ttf"
+local INTERB = "assets/fonts/Inter-SemiBold.ttf"
+local FAMILIES = {
+  chakra = TEXT_FONTS,
+  inter = {
+    small = { INTER, 12 }, body = { INTER, 13 }, bodyb = { INTERB, 13 },
+    h3 = { INTERB, 15 }, h2 = { INTERB, 19 }, h1 = { INTERB, 24 },
+  },
+}
+T.font_family = "chakra"
 T.BASE_SIZE = {}
 for k, v in pairs(TEXT_FONTS) do T.BASE_SIZE[k] = v[2] end
+
+--- troca a familia das fontes de texto (nil/desconhecida = a original)
+function T.set_family(fam)
+  fam = FAMILIES[fam or ""] and fam or "chakra"
+  if fam == T.font_family then return end
+  T.font_family = fam
+  TEXT_FONTS = FAMILIES[fam]
+  for k, v in pairs(TEXT_FONTS) do T.BASE_SIZE[k] = v[2] end
+  if T.f then T.set_font_level(T.font_level) end
+end
 
 --- niveis do tamanho do texto: px somados ao tamanho padrao de cada fonte
 T.FONT_LEVELS = {
@@ -116,11 +142,14 @@ function T.text_font(key, size)
   local spec = TEXT_FONTS[key]
   if not spec then return T.f and T.f[key] end
   local ck = key .. "|" .. size
+  if T.font_family ~= "chakra" then ck = T.font_family .. "|" .. ck end
   if CACHE[ck] then return CACHE[ck] end
   local font = love.graphics.newFont(spec[1], size)
   font:setFilter("linear", "linear")
-  local ok, f2 = pcall(love.graphics.newFont, spec[3], size + spec[4])
-  if ok and f2 then f2:setFilter("linear", "linear"); font:setFallbacks(f2) end
+  if spec[3] then
+    local ok, f2 = pcall(love.graphics.newFont, spec[3], size + spec[4])
+    if ok and f2 then f2:setFilter("linear", "linear"); font:setFallbacks(f2) end
+  end
   if key == "body" then font:setLineHeight(1.12) elseif key == "small" then font:setLineHeight(1.1) end
   hook_i18n(font)
   CACHE[ck] = font

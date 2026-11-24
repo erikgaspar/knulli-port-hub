@@ -967,6 +967,8 @@ function love.update(dt)
   Clock.tick()   -- diferenca para UTC do sistema (fuso/horario de verao), a cada 10 min
   Input.update(dt)
   Fetcher.update()
+  -- arte "hero" do tema Premium (so quando o modulo ja foi usado)
+  if package.loaded["core.heroart"] then package.loaded["core.heroart"].update() end
   local was_busy = Installer.job and not Installer.job.finished
   Installer.update()
   Downloads.update()
@@ -1144,6 +1146,7 @@ function love.quit()
   require("core.net").stop_watch()
   Music.stop_all()
   Fetcher.stop()
+  if package.loaded["core.heroart"] then package.loaded["core.heroart"].stop() end
   if Runtimes.busy() then Runtimes.cancel() end
   if PM.busy() and PM.can_cancel() then PM.cancel() end
   if Installer.busy() then

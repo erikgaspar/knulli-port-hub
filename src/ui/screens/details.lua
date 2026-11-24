@@ -19,7 +19,10 @@ local S = {}
 local DX, DY, DW, DH = 240, 152, 386, 196 -- caixa da descricao
 -- NEON GRID (layout "dashboard"): outra apresentacao, mesmas funcoes
 local NX, NY, NW, NH = 180, 204, 448, 182 -- caixa da descricao no NEON GRID
-local function neon() return T.style.layout ~= nil end   -- dashboard, channels ou carousel
+local function neon() return T.style.layout ~= nil and T.style.layout ~= "premium" end   -- dashboard, channels ou carousel
+-- Tema Premium: pagina propria (ui/premium/details.lua), mesmas acoes
+local function premium() return T.style.layout == "premium" end
+local function PD() return require("ui.premium.details") end
 
 function S:enter(params)
   Manifest.rescan()
@@ -166,6 +169,7 @@ function S:primary()
 end
 
 function S:draw()
+  if premium() then return PD().draw(self) end
   if neon() then return self:draw_neon() end
   local p = self.port
   G.header(L("Detalhes do port"))
@@ -451,6 +455,7 @@ function S:neon_action(act)
 end
 
 function S:action(act)
+  if premium() and PD().action(self, act) then return end
   if neon() and self:neon_action(act) then return end
   if neon() and act == "a" then self.btn = 1 end
   if act == "select" then

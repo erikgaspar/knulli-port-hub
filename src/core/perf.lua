@@ -99,7 +99,19 @@ function M.take_session(id)
       if last.minutes then s.minutes = last.minutes end
     end
   end
+  -- ultima sessao de jogo (cartao CONTINUAR do tema Premium): "id|inicio|minutos|temp. max."
+  Prefs.set("last_play", sid .. "|" .. (t0 or now) .. "|" .. (s.minutes and string.format("%.1f", s.minutes) or "")
+    .. "|" .. ((s.summary and s.summary.temp_max) and string.format("%.1f", s.summary.temp_max) or ""))
   return s
+end
+
+--- ultima sessao registrada do port: { start, minutes, temp_max } ou nil
+function M.last_play(id)
+  local raw = Prefs.get("last_play")
+  if not raw then return nil end
+  local sid, t0, mins, tmax = raw:match("^([%w_%-]+)|(%d+)|([%d%.]*)|([%d%.]*)$")
+  if not sid or sid ~= M.safe_id(id) then return nil end
+  return { start = tonumber(t0), minutes = tonumber(mins), temp_max = tonumber(tmax) }
 end
 
 -- ---------------------------------------------------------------------------

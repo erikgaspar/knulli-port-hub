@@ -1,0 +1,55 @@
+{
+  "id": "premium",
+  "name": "Premium",
+  "description": "Visual escuro e limpo do Knulli Port Hub: barra lateral, cartão Continuar com a arte do último jogo, grade de capas na Central e fonte Inter. Um único acento verde-limão.",
+  "version": "1.0",
+  "author": "Knulli Port Hub",
+  "preview": "preview.png",
+  "colors": {
+    "bg0": "#0E1013",
+    "bg1": "#171A1F",
+    "bg2": "#1F232A",
+    "bg3": "#2A2F38",
+    "line": "#2A2F38",
+    "text": "#F2F4F7",
+    "dim": "#9AA3AF",
+    "faint": "#6B7380",
+    "accent": "#B8F15A",
+    "accent2": "#D4FA94",
+    "yellow": "#F2A93B",
+    "green": "#B8F15A",
+    "red": "#F26B5B",
+    "orange": "#F2A93B",
+    "black": "#000000",
+    "shadow": "#00000080"
+  },
+  "buttons": {
+    "a": "#B8F15A",
+    "b": "#2A2F38",
+    "x": "#2A2F38",
+    "y": "#2A2F38",
+    "l1": "#2A2F38",
+    "r1": "#2A2F38",
+    "start": "#2A2F38",
+    "select": "#2A2F38",
+    "dpad": "#9AA3AF"
+  },
+  "style": {
+    "background": "premium",
+    "layout": "premium",
+    "font": "inter",
+    "round": 1.2,
+    "glow": "#B8F15A",
+    "scanlines": false,
+    "focus": "#B8F15A",
+    "effect": "premium",
+    "card": {
+      "fill": "#171A1F",
+      "line": "#1F232A",
+      "text": "#F2F4F7",
+      "dim": "#9AA3AF",
+      "faint": "#6B7380",
+      "icon": "#C5CBD3"
+    }
+  }
+}
