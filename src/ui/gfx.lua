@@ -196,13 +196,21 @@ function G.tag(s, x, y, bg, fg, font)
   return w, h
 end
 
+--- Letra impressa no botao fisico que gera a acao. No Knulli (RG35XXH) o SDL
+--- usa posicoes do Xbox: a acao "a" (confirmar) vem do botao B de baixo, "b"
+--- (voltar) do A da direita, "x" do Y da esquerda e "y" do X de cima.
+local KNULLI_BTN = os.getenv("PORTHUB_FW") == "knulli" and { a = "B", b = "A", x = "Y", y = "X" } or nil
+function G.btn_letter(btn)
+  return (KNULLI_BTN and KNULLI_BTN[btn]) or btn:upper()
+end
+
 --- Botao do controle desenhado (circulo com letra)
 function G.button_icon(btn, x, y, override)
   local c = override or T.btn[btn] or T.c.dim
   if btn == "a" or btn == "b" or btn == "x" or btn == "y" then
     G.color(c)
     lg.circle("fill", x + 8, y + 8, 8)
-    G.text(T.f.pix8, btn:upper(), x + 4, y + 4, T.c.bg0)
+    G.text(T.f.pix8, G.btn_letter(btn), x + 4, y + 4, T.c.bg0)
     return 16
   end
   if btn == "dpad" then

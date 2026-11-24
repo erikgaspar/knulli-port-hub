@@ -35,18 +35,44 @@ end
 
 -- Knulli Port Hub: mesmo app, outro nome e outro console (troca so o texto exibido)
 local KNULLI = os.getenv("PORTHUB_FW") == "knulli"
+-- RG35XXH: a acao "a" vem do botao B, "b" do A, "x" do Y, "y" do X (posicoes do
+-- Xbox no SDL do Knulli). Troca a letra nos textos que citam um botao.
+local SWAP = { A = "B", B = "A", X = "Y", Y = "X" }
+local BTN_PATS = {
+  "([Pp]ressione )([ABXY])%f[^%w]", "([Tt]oque )([ABXY])%f[^%w]", "([Aa]perte )([ABXY])%f[^%w]",
+  "([Bb]otão )([ABXY])%f[^%w]", "([Uu]se )([ABXY])%f[^%w]", "([Ee]m Meus Ports %()([ABXY])%f[^%w]",
+  "(: )([ABXY])( ou )", "(%()([ABXY])( mostra)", "(—%s+)([ABXY])( para ver)",
+  "(%. )([AB])( abre)", "( e )([AB])( volta)",
+  "([Pp]ress )([ABXY])%f[^%w]", "([Bb]utton )([ABXY])%f[^%w]",
+}
+local function swap_buttons(s)
+  if not s:find("[ABXY]") then return s end
+  for _, p in ipairs(BTN_PATS) do
+    s = s:gsub(p, function(a, b, c) return a .. (SWAP[b] or b) .. (c or "") end)
+  end
+  return s
+end
 local function brand(s)
-  if not KNULLI or type(s) ~= "string" or not s:find("R36", 1, true) then return s end
-  s = s:gsub("R36S PORT HUB", "Knulli Port Hub"):gsub("R36S Port Hub", "Knulli Port Hub")
-  s = s:gsub(" %(R36 Control%)", ""):gsub("R36 Control", "Knulli"):gsub("R36S", "console")
+  if not KNULLI or type(s) ~= "string" then return s end
+  if s:find("R36", 1, true) then
+    s = s:gsub("R36S PORT HUB", "Knulli Port Hub"):gsub("R36S Port Hub", "Knulli Port Hub")
+    s = s:gsub(" %(R36 Control%)", ""):gsub("R36 Control", "Knulli"):gsub("R36S", "console")
+  end
   return s
 end
 I.brand = brand
 
 function I.L(s)
-  if I.lang == "pt-BR" or type(s) ~= "string" then return brand(s) end
+  if not KNULLI then
+    if I.lang == "pt-BR" or type(s) ~= "string" then return s end
+    local d = I.dicts[I.lang] or load_dict(I.lang)
+    return d[s] or s
+  end
+  -- Knulli: nome novo + letra do botao certa (so aqui: o texto desenhado passa
+  -- de novo por brand, que nao troca botoes, entao a troca nao se desfaz)
+  if I.lang == "pt-BR" or type(s) ~= "string" then return type(s) == "string" and swap_buttons(brand(s)) or s end
   local d = I.dicts[I.lang] or load_dict(I.lang)
-  return brand(d[s] or s)
+  return swap_buttons(brand(d[s] or s))
 end
 
 -- maiusculas com acentos e cirilico (sem depender de ui/gfx)

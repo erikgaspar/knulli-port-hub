@@ -322,6 +322,18 @@ local battery = {
 -- ---------------------------------------------------------------------------
 -- CONTROLES
 local BUTTON_MAP = function()
+  if C.KNULLI then
+    -- RG35XXH: B (baixo) confirma e A (direita) volta, como no EmulationStation
+    return L("Direcional / analógico esquerdo: navegar") .. "\n"
+      .. L("B: selecionar / confirmar") .. "\n"
+      .. L("A: voltar / cancelar") .. "\n"
+      .. L("Y: excluir, limpar ou cancelar (conforme a tela)") .. "\n"
+      .. L("X: atualizar ou ação extra (conforme a tela)") .. "\n"
+      .. L("L1 / R1: trocar aba ou categoria") .. "\n"
+      .. L("SELECT: favoritar") .. "\n"
+      .. L("START: Central de Downloads (em Sobre: apoiar o projeto)") .. "\n"
+      .. L("MENU: salvar um print da tela")
+  end
   return L("Direcional / analógico esquerdo: navegar") .. "\n"
     .. L("A: selecionar / confirmar") .. "\n"
     .. L("B: voltar / cancelar") .. "\n"
