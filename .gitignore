@@ -9,3 +9,5 @@ build/
 /catalog_url.txt
 /es_themes_url.txt
 /update_url.txt
+__pycache__/
+*.pyc

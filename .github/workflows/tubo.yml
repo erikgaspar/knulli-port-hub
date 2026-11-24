@@ -1,0 +1,94 @@
+# Tubo (app do hub, apps/tubo): publica o pacote sozinho.
+# Push no main que mexe em apps/tubo/ -> le VERSION do apps/tubo/app/tubo.py; se a
+# Release "tubo-v<versao>" ainda nao existe, monta o Tubo.zip (sem yt-dlp, dados, cache
+# e __pycache__; o yt-dlp e baixado na instalacao), cria a Release (NAO marcada como
+# latest: a "latest" do repositorio e sempre a do Knulli Port Hub) e grava versao,
+# link, tamanho e sha256 na entrada "tubo" da lista "apps" do knulli-catalog.json.
+# Para publicar uma versao nova: suba VERSION no tubo.py.
+name: Publicar Tubo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/tubo/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tubo
+  cancel-in-progress: false
+
+jobs:
+  tubo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versao
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(sed -n 's/^VERSION = "\([0-9A-Za-z.\-]*\)".*/\1/p' apps/tubo/app/tubo.py | head -1)
+          test -n "$VER"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          if gh release view "tubo-v$VER" >/dev/null 2>&1; then
+            echo "exists=1" >> "$GITHUB_OUTPUT"
+            echo "Release tubo-v$VER ja existe (suba VERSION no tubo.py para publicar)."
+          fi
+
+      - name: Montar o pacote
+        if: steps.ver.outputs.exists != '1'
+        run: |
+          sudo apt-get install -y zip >/dev/null 2>&1 || true
+          mkdir -p build
+          rm -f build/Tubo.zip
+          chmod 755 apps/tubo/app/Tubo.sh apps/tubo/app/tubo.py apps/tubo/app/updater.py
+          (cd apps/tubo/app && zip -q -9 -r -X ../../../build/Tubo.zip . \
+              -x '*__pycache__*' 'data/*' 'cache/*' 'bin/*' '*.pyc')
+          (cd apps/tubo && zip -q -9 -X ../../build/Tubo.zip tubo-image.png)
+          unzip -l build/Tubo.zip
+
+      - name: Publicar a Release e o catalogo
+        if: steps.ver.outputs.exists != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VER: ${{ steps.ver.outputs.ver }}
+        run: |
+          printf 'Tubo %s: cliente leve e não oficial de YouTube para o Knulli (pygame + mpv + yt-dlp), para uso pessoal.\nInstale pelo Knulli Port Hub (Central > Apps do Knulli). O yt-dlp é baixado na instalação, direto da release oficial do yt-dlp.\n\nCommit %s.\n' \
+            "$VER" "${GITHUB_SHA:0:7}" > notes.md
+          gh release create "tubo-v$VER" build/Tubo.zip --title "Tubo $VER" --notes-file notes.md --latest=false
+          SIZE=$(stat -c %s build/Tubo.zip)
+          SHA=$(sha256sum build/Tubo.zip | cut -d' ' -f1)
+          INST=$(unzip -l build/Tubo.zip | tail -1 | awk '{print $1}')
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/tubo-v$VER/Tubo.zip"
+          VER="$VER" SIZE="$SIZE" SHA="$SHA" INST="$INST" URL="$URL" python3 - <<'EOF'
+          # troca so as linhas da entrada "tubo" (o resto do arquivo fica como esta)
+          import json, os, re
+          p = "knulli-catalog.json"
+          text = open(p, encoding="utf-8").read()
+          i = text.index('"id": "tubo"')
+          head, tail = text[:i], text[i:]
+          tail = re.sub(r'"version": "[^"]*"', '"version": "%s"' % os.environ["VER"], tail, count=1)
+          # yt-dlp (~3 MB) + copia pre-compilada (~5,5 MB) entram depois
+          rel = {"url": os.environ["URL"], "size": int(os.environ["SIZE"]), "sha256": os.environ["SHA"],
+                 "installed_size": int(os.environ["INST"]) + 9 * 1024 * 1024}
+          tail, n = re.subn(r'"release": \{[^{}]*\}', '"release": ' + json.dumps(rel), tail, count=1)
+          assert n == 1
+          text = head + tail
+          data = json.loads(text)
+          app = next(a for a in data["apps"] if a["id"] == "tubo")
+          assert app["release"]["sha256"] == os.environ["SHA"] and app["version"] == os.environ["VER"]
+          open(p, "w", encoding="utf-8", newline="\n").write(text)
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add knulli-catalog.json
+          git commit -m "Catálogo: Tubo $VER (pacote publicado pela Action)"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && break
+            sleep 5
+          done

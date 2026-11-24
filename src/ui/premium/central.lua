@@ -331,7 +331,7 @@ end
 local function open_info(id)
   if id == "kstore" then
     local KS = require("core.kstore")
-    local apps = KS.available() and KS.list() or nil
+    local apps = (KS.available() or #KS.hub_list() > 0) and KS.list() or nil
     local n = 0
     for _, a in ipairs(apps or {}) do if a.status ~= "none" then n = n + 1 end end
     return L("Apps do Knulli"), L("Apps da Knulli App Store (comunidade): instalar, atualizar e remover."),
@@ -610,7 +610,7 @@ function PC.action(self, act)
     elseif act == "a" then
       local it = s.items[s.sel]
       if it and it.app then require("ui.premium.kapp").open(it.app)
-      elseif n == 0 and s.apps_err == "missing" then
+      elseif (it and it.prepare) or (n == 0 and s.apps_err == "missing") then
         -- sem loja e sem a copia do hub: baixa o instalador + lista oficial
         require("ui.kstore_ui").prepare(s, function() PC.invalidate(self) end)
       end

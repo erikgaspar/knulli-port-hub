@@ -121,7 +121,8 @@ function S:draw()
     for k, l in ipairs(dl) do G.text(df, l, cx + 10, dy + (k - 1) * dlh, pal.dim, "center", cw - 20) end
     local label, lc
     if card.id == "kstore" then
-      local apps = require("core.kstore").available() and require("core.kstore").list() or nil
+      local KS = require("core.kstore")
+      local apps = (KS.available() or #KS.hub_list() > 0) and KS.list() or nil
       local n = 0
       for _, a in ipairs(apps or {}) do if a.status ~= "none" then n = n + 1 end end
       label = apps and string.format(L("%d DE %d INSTALADOS"), n, #apps) or L("PREPARAR")

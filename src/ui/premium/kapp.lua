@@ -47,6 +47,11 @@ end
 
 --- pseudo-port para o core/heroart.lua (imagem de apresentacao do repositorio)
 function KA.hero_ref(a)
+  -- app do hub: imagem propria (capa do menu) no lugar da do repositorio
+  if a and a.hub and type(a.image_url) == "string" and a.image_url:match("^https://") then
+    a.hero_ref = a.hero_ref or { slug = "hubapp_" .. tostring(a.id):gsub("[^%w]", "_"), name = a.name, hero = a.image_url }
+    return a.hero_ref
+  end
   local o, r = KA.github(a and a.repository)
   if not o then return nil end
   a.hero_ref = a.hero_ref or { slug = "kapp_" .. tostring(a.id):gsub("[^%w]", "_"), name = a.name,
@@ -157,7 +162,9 @@ end
 
 --- itens da aba (cartoes largos) e a contagem; nil + erro sem a loja
 function KA.items()
-  if not K.available() then return nil, "missing" end
+  local missing = not K.available()
+  -- sem a Knulli App Store: so os apps do hub (catalogo extra) + cartao "Preparar"
+  if missing and #K.hub_list() == 0 then return nil, "missing" end
   local apps, err = K.list(true)
   if not apps then return nil, err end
   local list = {}
@@ -172,6 +179,11 @@ function KA.items()
     if a.status ~= "none" then inst = inst + 1 end
     items[#items + 1] = { id = "kapp:" .. a.id, name = a.name, short = a.summary, app = a,
       card_icon = KA.ICON[a.type] or "generic", card_img = KA.app_image(a), card_tags = KA.tags(a) }
+  end
+  if missing then
+    items[#items + 1] = { id = "kapp:prepare", name = L("Preparar os Apps do Knulli"), prepare = true,
+      short = L("Baixa a lista de apps da Knulli App Store (comunidade) para instalar pelo hub."),
+      card_icon = "store", card_tags = { { require("ui.kstore_ui").size_label(), PS.c().dim } } }
   end
   return items, nil, inst
 end

@@ -72,6 +72,10 @@ local function run(scr, app, action, on_done)
     if on_done then on_done(ok) else to_items(scr) end
     if ok then
       App.toast(app.name .. ": " .. I18N.tr(({ install = L("instalado"), update = L("atualizado"), repair = L("reparado"), uninstall = L("removido") })[action]), "ok")
+    elseif app.hub then
+      App.show_dialog({ title = L("A instalação não foi concluída"), kind = "error",
+        body = (r and r.out ~= "" and r.out or tostring(terr or "?"))
+          .. "\n\n" .. L("Se a troca de arquivos falhou, a versão anterior foi mantida. Registro: ") .. K.hub_log(action) })
     else
       App.show_dialog({ title = L("A Knulli App Store não concluiu"), kind = "error",
         body = (r and r.out ~= "" and r.out or tostring(terr or "?"))
@@ -85,7 +89,11 @@ local function confirm(scr, app, action, on_done)
   local titles = { install = L("Instalar app?"), update = L("Atualizar app?"), repair = L("Reparar app?"), uninstall = L("Remover app?") }
   local labels = { install = L("INSTALAR"), update = L("ATUALIZAR"), repair = L("REPARAR"), uninstall = L("REMOVER") }
   local body = app.name .. "  (v" .. app.version .. ")\n" .. app.summary
-  if action == "uninstall" then
+  if app.hub and action == "uninstall" then
+    body = body .. "\n\n" .. L("Remove a pasta do app (com os dados dele), o atalho e a capa do menu Tools.")
+  elseif app.hub then
+    body = body .. "\n\n" .. L("App distribuído pelo Knulli Port Hub. Precisa de internet: o pacote vem das Releases do GitHub do hub e é conferido por sha256.")
+  elseif action == "uninstall" then
     body = body .. "\n\n" .. L("Remove só os arquivos que o app instalou e devolve os originais que ele trocou. Dados declarados pelo app são mantidos.")
   else
     body = body .. "\n\n" .. L("Todos os apps da Knulli App Store são experimentais. Precisa de internet; a instalação é feita pelo instalador da própria loja.")
@@ -141,7 +149,7 @@ function M.prepare(scr, on_done, skip_confirm)
 end
 
 function M.open()
-  if not K.available() then
+  if not K.available() and #K.hub_list() == 0 then
     K.peek()
     App.show_dialog({ title = L("Preparar os Apps do Knulli"), kind = "info",
       body = L("Os apps do Knulli vêm da Knulli App Store (comunidade). O hub pode baixar o instalador e a lista oficial de apps, sem instalar a loja em Ports.\n\nDownload: ") .. M.size_label(),

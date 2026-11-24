@@ -111,11 +111,86 @@ function K.list(force)
   return res, err
 end
 
+-- ---------------------------------------------------------------------------
+-- Apps do hub: lista "apps" do catalogo extra (knulli-catalog.json). Apps que
+-- nao sao ports (ex.: Tubo, em /userdata/system/knulli-tools/tubo, com atalho
+-- no menu Tools). Instalados pelo bin/hubapp.py do hub (zip da release do
+-- GitHub conferido por sha256). Aparecem junto dos apps da Knulli App Store.
+-- Estado: K.HUBAPP_STATE/<id>.json; sem ele, vale o arquivo install.detect na
+-- pasta do app (instalado a mao) e a versao "VERSION = ..." escrita nele.
+-- Testes: PORTHUB_HUBAPP_ROOT poe um prefixo em todos os caminhos.
+K.HUBAPP_STATE = os.getenv("PORTHUB_HUBAPP_STATE") or "/userdata/system/knulli-port-hub/apps"
+K.HUBAPP_ROOT = (os.getenv("PORTHUB_HUBAPP_ROOT") or ""):gsub("/+$", "")
+
+--- texto do app no idioma atual (summary_en, notes_ru...)
+local function loc(e, field)
+  local lang = require("lib.i18n").lang
+  if lang ~= "pt-BR" then
+    local v = e[field .. "_" .. lang]
+    if v ~= nil and v ~= "" then return v end
+  end
+  return e[field]
+end
+
+--- versao gravada no arquivo de deteccao (VERSION = "1.0")
+local function detect_version(path)
+  local t = U.read_file(path)
+  if not t then return nil end
+  return t:sub(1, 8192):match("\nVERSION%s*=%s*[\"']([^\"']+)[\"']") or "?"
+end
+
+function K.hub_entries()
+  local ok, Catalog = pcall(require, "core.catalog")
+  local ex = ok and Catalog.extra
+  return (type(ex) == "table" and type(ex.apps) == "table") and ex.apps or {}
+end
+
+function K.hub_list()
+  local out = {}
+  for _, e in ipairs(K.hub_entries()) do
+    if type(e) == "table" and type(e.id) == "string" and e.id:match("^[a-z0-9][a-z0-9._%-]*$")
+        and type(e.install) == "table" and type(e.release) == "table" then
+      local st = read_json(K.HUBAPP_STATE .. "/" .. e.id .. ".json")
+      local iv = type(st) == "table" and st.version or nil
+      local dest = tostring(e.install.destination or "")
+      if not iv and e.install.detect and dest ~= "" then
+        iv = detect_version(K.HUBAPP_ROOT .. dest .. "/" .. tostring(e.install.detect))
+      end
+      if iv and dest ~= "" and not U.file_size(K.HUBAPP_ROOT .. dest .. "/" .. tostring(e.install.launcher or "")) then
+        iv = nil   -- pasta apagada a mao
+      end
+      local status = "none"
+      if iv then status = (iv == "?" or K.vcmp(iv, e.version) < 0) and "update" or "installed" end
+      local pkg = {}
+      for k, v in pairs(e) do pkg[k] = v end
+      pkg.install = {}
+      for k, v in pairs(e.install) do pkg.install[k] = v end
+      pkg.install.warning = loc(e.install, "warning")
+      if type(pkg.install.menu) == "table" then
+        local m = {}
+        for k, v in pairs(pkg.install.menu) do m[k] = v end
+        m.desc = loc(e.install.menu, "desc")
+        pkg.install.menu = m
+      end
+      out[#out + 1] = { id = e.id, name = tostring(e.name or e.id), version = tostring(e.version or "?"),
+        type = e.type or "utility", summary = tostring(loc(e, "summary") or ""),
+        notes = type(loc(e, "notes")) == "table" and loc(e, "notes") or {},
+        review = tostring(e.review or ""), license = tostring(e.license or ""),
+        repository = tostring(e.repository or ""), installed_version = iv, status = status,
+        pkg = pkg, hub = true, image_url = e.image_url }
+    end
+  end
+  return out
+end
+
 function K.list_raw()
   local d = K.dir()
   local cat = d and read_json(d .. "/catalog-index.json")
-  if type(cat) ~= "table" or type(cat.packages) ~= "table" then return nil, L("Lista de apps da Knulli App Store não encontrada.") end
-  local out = {}
+  local out = K.hub_list()
+  if type(cat) ~= "table" or type(cat.packages) ~= "table" then
+    if #out > 0 then return out end
+    return nil, L("Lista de apps da Knulli App Store não encontrada.")
+  end
   for _, e in ipairs(cat.packages) do
     local p = type(e) == "table" and e.package
     if type(p) == "table" and p.id then
@@ -142,6 +217,7 @@ K.running = 0
 --- comando do instalador para uma acao ("install"|"update"|"repair"|"uninstall")
 --- O manifesto do app vai para um arquivo temporario (o knulli-app le de arquivo).
 function K.command(app, action)
+  if app.hub then return K.hub_command(app, action) end
   local dir = K.dir()
   if not dir then return nil, L("Os Apps do Knulli ainda não foram preparados.") end
   local d = U.shq(dir)
@@ -154,6 +230,23 @@ function K.command(app, action)
   if not U.write_file(mf, json.encode(app.pkg)) then return nil, L("não foi possível gravar o manifesto temporário") end
   return "mkdir -p " .. U.shq(K.STATE) .. " && cd " .. d .. " && ./knulli-app validate " .. U.shq(mf) .. " > " .. log .. " 2>&1 && ./knulli-app "
     .. action .. " " .. U.shq(mf) .. " >> " .. log .. " 2>&1; rc=$?; rm -f " .. U.shq(mf) .. "; tail -n 15 " .. log .. "; exit $rc"
+end
+
+--- registro da ultima acao de um app do hub
+function K.hub_log(action) return K.HUBAPP_STATE .. "/hub-" .. action .. ".log" end
+
+--- comando para um app do hub (bin/hubapp.py com o manifesto num arquivo temporario)
+function K.hub_command(app, action)
+  local py = os.getenv("PORTHUB_HUBAPP_PY") or (C.APP_DIR .. "/bin/hubapp.py")
+  local mf = C.APP_DIR .. "/tmp/hubapp-" .. app.id:gsub("[^%w%._%-]", "_") .. ".json"
+  U.exec_ok("mkdir -p " .. U.shq(C.APP_DIR .. "/tmp") .. " " .. U.shq(K.HUBAPP_STATE))
+  -- manifesto original do catalogo (sem os textos traduzidos)
+  local raw
+  for _, e in ipairs(K.hub_entries()) do if type(e) == "table" and e.id == app.id then raw = e end end
+  if not U.write_file(mf, json.encode(raw or app.pkg)) then return nil, L("não foi possível gravar o manifesto temporário") end
+  local log = U.shq(K.hub_log(action))
+  return "python3 -I " .. U.shq(py) .. " " .. action .. " " .. U.shq(mf) .. " > " .. log .. " 2>&1; rc=$?; rm -f "
+    .. U.shq(mf) .. "; grep -v '^STEP' " .. log .. " | tail -n 15; exit $rc"
 end
 
 -- ---------------------------------------------------------------------------

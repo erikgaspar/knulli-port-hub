@@ -25,4 +25,54 @@
         "note": "Roda. Atenção: o save fica dentro da pasta do port; faça backup antes de apagar ou reinstalar." }
     }
   ]
+,
+  "apps_about": "Apps do hub que não são ports (ficam fora de roms/ports, com atalho no menu Tools). O Knulli Port Hub instala pelo bin/hubapp.py: baixa release.url, confere size e sha256, extrai em install.destination (mantendo install.keep), cria o atalho install.menu.path e a capa na pasta da gamelist, põe o item na gamelist (arquivo + API do EmulationStation) e roda install.post_install. O pacote do Tubo é publicado pela Action .github/workflows/tubo.yml, que também preenche version e release aqui.",
+  "apps": [
+    {
+      "id": "tubo",
+      "name": "Tubo (YouTube)",
+      "version": "1.0.1",
+      "type": "utility",
+      "review": "experimental",
+      "summary": "Cliente leve e NÃO OFICIAL de YouTube para o console: busca, canais, inscrições locais, assistir mais tarde e modo só áudio, até 480p. Para uso pessoal. Usa yt-dlp (baixado na instalação) e mpv.",
+      "summary_en": "Lightweight UNOFFICIAL YouTube client for the console: search, channels, local subscriptions, watch later and audio-only mode, up to 480p. For personal use. Uses yt-dlp (downloaded at install time) and mpv.",
+      "summary_ru": "Лёгкий НЕОФИЦИАЛЬНЫЙ клиент YouTube для консоли: поиск, каналы, локальные подписки, «смотреть позже» и режим только аудио, до 480p. Для личного использования. Использует yt-dlp (загружается при установке) и mpv.",
+      "notes": [
+        "O Tubo não é do YouTube nem do Google e não tem ligação com eles. Funciona pelo yt-dlp, que é baixado da release oficial (github.com/yt-dlp/yt-dlp) na instalação e atualizado pelo próprio Tubo (Configurações > Atualizar yt-dlp). Se o YouTube mudar algo e parar de abrir, atualize o yt-dlp.",
+        "Feito para o RG35XXH (Knulli): interface em pygame, vídeo no mpv até 480p. Inscrições, histórico e 'assistir mais tarde' ficam só no console (sem conta do Google). Saída: A na tela inicial ou Menu+Start. Precisa de Wi-Fi."
+      ],
+      "notes_en": [
+        "Tubo is not made by, affiliated with or endorsed by YouTube or Google. It works through yt-dlp, downloaded from the official release (github.com/yt-dlp/yt-dlp) at install time and updated by Tubo itself (Settings > Update yt-dlp). If YouTube changes something and videos stop opening, update yt-dlp.",
+        "Made for the RG35XXH (Knulli): pygame interface, mpv video up to 480p. Subscriptions, history and 'watch later' stay on the console only (no Google account). Exit: A on the home screen or Menu+Start. Requires Wi-Fi."
+      ],
+      "notes_ru": [
+        "Tubo не создан YouTube или Google и не связан с ними. Работает через yt-dlp, который загружается из официального релиза (github.com/yt-dlp/yt-dlp) при установке и обновляется самим Tubo (Настройки > Обновить yt-dlp). Если YouTube что-то изменит и видео перестанут открываться, обновите yt-dlp.",
+        "Сделан для RG35XXH (Knulli): интерфейс на pygame, видео в mpv до 480p. Подписки, история и «смотреть позже» хранятся только на консоли (без аккаунта Google). Выход: A на главном экране или Menu+Start. Нужен Wi-Fi."
+      ],
+      "license": "Uso pessoal (fonte Inter: SIL OFL)",
+      "repository": "https://github.com/erikgaspar/knulli-port-hub/tree/main/apps/tubo",
+      "image_url": "https://raw.githubusercontent.com/erikgaspar/knulli-port-hub/main/apps/tubo/tubo-image.png",
+      "release": {"url": "", "size": 0, "sha256": "", "installed_size": 0},
+      "install": {
+        "destination": "/userdata/system/knulli-tools/tubo",
+        "launcher": "Tubo.sh",
+        "detect": "tubo.py",
+        "keep": ["data", "cache", "bin"],
+        "network": true,
+        "post_install": ["python3", "updater.py", "--force"],
+        "warning": "Cliente não oficial, para uso pessoal. Respeite os termos do YouTube e os direitos dos criadores.",
+        "warning_en": "Unofficial client, for personal use. Respect YouTube's terms and the creators' rights.",
+        "warning_ru": "Неофициальный клиент для личного использования. Соблюдайте условия YouTube и права авторов.",
+        "menu": {
+          "gamelist": "/userdata/roms/tools/gamelist.xml",
+          "path": "./Tubo.sh",
+          "name": "Tubo (YouTube)",
+          "desc": "Assista vídeos do YouTube no console: busca, canais, inscrições locais, assistir mais tarde e modo só áudio. Leve, até 480p. Cliente não oficial (yt-dlp + mpv).",
+          "desc_en": "Watch YouTube videos on the console: search, channels, local subscriptions, watch later and audio-only mode. Lightweight, up to 480p. Unofficial client (yt-dlp + mpv).",
+          "image": "./images/tubo-image.png",
+          "image_src": "tubo-image.png"
+        }
+      }
+    }
+  ]
 }

@@ -4342,4 +4342,10 @@ return {
   ["Os apps do Knulli vêm da Knulli App Store, uma loja da comunidade. O hub baixa só o instalador e a lista oficial de apps (sem instalar a loja em Ports) e cuida da instalação e das atualizações."] = "Приложения Knulli берутся из Knulli App Store — магазина сообщества. Хаб загружает только установщик и официальный список приложений (без установки магазина в Ports) и сам выполняет установку и обновления.",
   ["Baixando…"] = "Загрузка…",
   ["Preparar"] = "Подготовить",
+  -- apps do hub (lista "apps" do knulli-catalog.json, bin/hubapp.py)
+  ["A instalação não foi concluída"] = "Установка не завершена",
+  ["Se a troca de arquivos falhou, a versão anterior foi mantida. Registro: "] = "Если замена файлов не удалась, предыдущая версия сохранена. Журнал: ",
+  ["Remove a pasta do app (com os dados dele), o atalho e a capa do menu Tools."] = "Удаляет папку приложения (вместе с его данными), ярлык и обложку из меню Tools.",
+  ["App distribuído pelo Knulli Port Hub. Precisa de internet: o pacote vem das Releases do GitHub do hub e é conferido por sha256."] = "Приложение распространяется через Knulli Port Hub. Нужен интернет: пакет загружается из Releases на GitHub и проверяется по sha256.",
+  ["Baixa a lista de apps da Knulli App Store (comunidade) para instalar pelo hub."] = "Загружает список приложений Knulli App Store (сообщество) для установки через хаб.",
 }
