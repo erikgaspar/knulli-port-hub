@@ -27,6 +27,12 @@ Tudo o que muda só vale quando o app detecta o Knulli; no R36S/dArkOS o comport
 - **Botões do RG35XXH:** B (baixo) confirma, A (direita) volta, como no EmulationStation; ícones e textos mostram as letras certas.
 - **Atualizações:** por este repositório (a atualização oficial é a do R36S e apagaria a adaptação).
 
+### A mais que o original (menu "Ferramentas do Knulli" e Central)
+- **Apps do Knulli:** a Knulli App Store integrada (instalar, atualizar, reparar, remover).
+- **Biblioteca: manutenção:** faxina das listas de jogos, imagens automáticas (libretro-thumbnails), `.m3u` para jogos de vários discos, limpeza e redução de vídeos de prévia.
+- **Modo desempenho por port** (CPU/GPU no máximo, EmulationStation pausado, temperatura e tempo medidos) e **"Como rodou?"** depois de jogar, com relatórios exportáveis para o catálogo extra.
+- **Gerenciador de espaço do cartão**, **backup completo dos saves**, **monitor do console** (temperatura, CPU, RAM, bateria) e **controle Bluetooth**.
+
 ## Instalação
 
 1. Baixe `Knulli-Port-Hub.zip` em **[Releases](../../releases/latest)**.
