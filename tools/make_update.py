@@ -102,7 +102,7 @@ def manifest(ports, files, kind, vmin=None, vmax=None, desc="", changes=None, fi
 
 def cmd_full(ports):
     files = hub_files(ports)
-    m = manifest(ports, files, "full", desc="Pacote completo do R36S PORT HUB.")
+    m = manifest(ports, files, "full", desc=("Pacote completo do Knulli Port Hub." if KNULLI else "Pacote completo do R36S PORT HUB."))
     with open(os.path.join(ports, "update_manifest.json"), "w", encoding="utf-8") as f:
         json.dump(m, f, ensure_ascii=False, indent=1)
     print("manifesto completo:", len(files), "arquivos, versao", m["version"])
