@@ -124,7 +124,11 @@ function PC.invalidate(self)
   if self.pc then self.pc.tabs = nil; self.pc.items = nil; self.pc.oinfo = nil end
 end
 
-local function metrics(s) return PG.metrics(20, s.grid_y or GRID_Y, 600, PS.FOOT_Y - 6) end
+-- aba Utilitarios: cartoes largos (ferramentas sem capa e com nome longo)
+local function metrics(s)
+  local t = s.tabs and s.tabs[s.tab]
+  return PG.metrics(20, s.grid_y or GRID_Y, 600, PS.FOOT_Y - 6, t and t.id == "tools")
+end
 
 function PC.update(self, dt)
   local s = st(self)
@@ -248,6 +252,8 @@ local function draw_tabs(self, s)
         -- sem filtros: a contagem fica a esquerda do botao
         local cf = PS.font("r", 12, true)
         local txt = string.format(PS.tr(s.count == 1 and L("%d port") or L("%d ports")), s.count or 0)
+        -- Utilitarios sem ports do catalogo: conta as ferramentas integradas
+        if (s.count or 0) == 0 and s.items and #s.items > 0 then txt = string.format(PS.tr(L("%d ferramentas")), #s.items) end
         if fx - 12 - cf:getWidth(txt) > x then PS.text(cf, txt, fx - 12 - cf:getWidth(txt), TABS_Y + 21 - cf:getHeight() / 2, c.dim) end
       end
     end
@@ -456,7 +462,7 @@ local function jump(s, d)
   local f = filt(s, s.tabs[s.tab].id)
   s.zone = "grid"
   if f.sort ~= "az" then
-    s.sel = U.clamp(s.sel + d * PG.COLS * 3, 1, n)
+    s.sel = U.clamp(s.sel + d * metrics(s).cols * 3, 1, n)
     return
   end
   local letter = PF.letter
@@ -478,8 +484,8 @@ local function jump(s, d)
   s.sel = i
   -- a primeira linha da letra vai para o topo da grade
   local m = metrics(s)
-  local row = math.floor((i - 1) / PG.COLS)
-  local rows = math.ceil(n / PG.COLS)
+  local row = math.floor((i - 1) / m.cols)
+  local rows = math.ceil(n / m.cols)
   local maxs = math.max(0, rows * (m.rh + PG.GAP) - PG.GAP - (m.view - 4))
   s.pg_target = math.min(row * (m.rh + PG.GAP), maxs)
   local l = letter(items[i])
@@ -540,7 +546,7 @@ function PC.action(self, act)
   if act == "r2" then jump(s, 1); return end
   local n = #s.items
   if act == "up" or act == "down" or act == "left" or act == "right" then
-    local sel, out = PG.move(s.sel, n, act)
+    local sel, out = PG.move(s.sel, n, act, metrics(s).cols)
     s.sel = sel
     if out == "up" or (n == 0 and act == "up") then s.zone = has_chips and "chips" or "band" end
     return

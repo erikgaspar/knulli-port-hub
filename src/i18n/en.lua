@@ -4299,4 +4299,6 @@ return {
   ["Tire um filtro na faixa acima ou ajuste o painel."] = "Remove a filter in the bar above or adjust the panel.",
   ["Tirar filtro"] = "Remove filter",
   ["Letra"] = "Letter",
+  ["%d ferramentas"] = "%d tools",
+  ["NO HUB"] = "IN HUB",
 }

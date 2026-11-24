@@ -4299,4 +4299,6 @@ return {
   ["Tire um filtro na faixa acima ou ajuste o painel."] = "Уберите фильтр на панели выше или измените настройки.",
   ["Tirar filtro"] = "Убрать фильтр",
   ["Letra"] = "Буква",
+  ["%d ferramentas"] = "инструментов: %d",
+  ["NO HUB"] = "В ХАБЕ",
 }

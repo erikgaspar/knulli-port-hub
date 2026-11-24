@@ -58,7 +58,7 @@ end
 local function brand(s)
   if not KNULLI or type(s) ~= "string" then return s end
   if s:find("R36", 1, true) then
-    s = s:gsub("R36S PORT HUB", "Knulli Port Hub"):gsub("R36S Port Hub", "Knulli Port Hub")
+    s = s:gsub("R36S PORT HUB", "Knulli Port Hub"):gsub("R36S Port Hub", "Knulli Port Hub"):gsub("R36S Analog Tester", "Analog Tester")
     s = s:gsub(" %(R36 Control%)", ""):gsub("R36 Control", "Knulli"):gsub("R36S", "console")
   end
   return s

@@ -14,18 +14,26 @@ PG.GAP = 10
 PG.COVER_H = 132
 PG.NAME_GAP = 5
 
---- medidas da grade numa area (x, y, w, bottom)
-function PG.metrics(x, y, w, bottom)
+--- medidas da grade numa area (x, y, w, bottom). cards = true: cartoes largos
+--- de 2 colunas (icone/imagem, nome em 2 linhas, descricao e etiquetas), usados
+--- onde os itens nao tem capa nem nome curto (aba Utilitarios)
+function PG.metrics(x, y, w, bottom, cards)
+  if cards then
+    local cols = 2
+    local cw = (w - PG.GAP * (cols - 1)) / cols
+    return { x = x, y = y, w = w, bottom = bottom, cw = cw, rh = 96, view = bottom - y, cols = cols, cards = true,
+      nf = PS.font("b", 14), df = PS.font("r", 11), tf = PS.font("b", 10, true) }
+  end
   local cw = (w - PG.GAP * (PG.COLS - 1)) / PG.COLS
   local nf = PS.font("m", 11)
   local rh = PG.COVER_H + PG.NAME_GAP + nf:getHeight()
-  return { x = x, y = y, w = w, bottom = bottom, cw = cw, rh = rh, view = bottom - y, nf = nf }
+  return { x = x, y = y, w = w, bottom = bottom, cw = cw, rh = rh, view = bottom - y, nf = nf, cols = PG.COLS }
 end
 
 --- atualiza a rolagem (chamar no update da tela). st = tabela de estado da tela
 function PG.update(st, n, sel, m, dt)
-  local rows = math.ceil(n / PG.COLS)
-  local row = math.floor((math.max(1, sel) - 1) / PG.COLS)
+  local rows = math.ceil(n / (m.cols or PG.COLS))
+  local row = math.floor((math.max(1, sel) - 1) / (m.cols or PG.COLS))
   st.pg_target = PM.scroll_for(row, st.pg_target or 0, m.view - 4, m.rh, PG.GAP, rows)
   st.pg_scroll = PS.approach(st.pg_scroll or st.pg_target, st.pg_target, dt, 14)
 end
@@ -42,15 +50,17 @@ function PG.draw(st, m, o)
   local first = math.max(0, math.floor((scroll - 8) / (m.rh + PG.GAP)))
   local last = math.floor((scroll + m.view) / (m.rh + PG.GAP)) + 1
   for row = first, last do
-    for col = 0, PG.COLS - 1 do
-      local i = row * PG.COLS + col + 1
+    for col = 0, (m.cols or PG.COLS) - 1 do
+      local i = row * (m.cols or PG.COLS) + col + 1
       if i > n then break end
       local p = items[i]
       local x = m.x + col * (m.cw + PG.GAP)
       local y = m.y + row * (m.rh + PG.GAP) - scroll
       local on = o.focus and i == o.sel
       local k = PS.fk((o.key or "pg") .. i, on)
-      if y + m.rh >= m.y - 4 and y <= m.bottom then
+      if m.cards and y + m.rh >= m.y - 4 and y <= m.bottom then
+        PG.draw_card(p, x, y, m, k, on, o)
+      elseif y + m.rh >= m.y - 4 and y <= m.bottom then
         local bx, by, bw, bh = PS.grow(x, y, m.cw, PG.COVER_H, k)
         PS.cover(p, bx, by, bw, bh, 10, o.bg or c.bg)
         PS.cover_badges(p, bx, by, bw, bh)
@@ -64,7 +74,7 @@ function PG.draw(st, m, o)
   end
   G.unclip()
   -- barra de rolagem discreta
-  local rows = math.ceil(n / PG.COLS)
+  local rows = math.ceil(n / (m.cols or PG.COLS))
   local total = rows * (m.rh + PG.GAP) - PG.GAP
   if total > m.view + 2 then
     local h = math.max(18, m.view * m.view / total)
@@ -73,9 +83,49 @@ function PG.draw(st, m, o)
   end
 end
 
+--- um cartao largo: imagem/icone a esquerda, nome (2 linhas), descricao curta
+--- (2 linhas) e etiquetas (integrado ao hub / PortMaster / tamanho / instalado)
+function PG.draw_card(p, x, y, m, k, on, o)
+  local c = PS.c()
+  local L = require("lib.i18n").L
+  local bx, by, bw, bh = PS.grow(x, y, m.cw, m.rh, k, 0.015)
+  PS.rect(bx, by, bw, bh, on and c.surf2 or c.surf, 12)
+  -- imagem: icone da ferramenta (integrada) ou capa recortada em quadrado
+  local isz = bh - 20
+  PS.cover(p, bx + 10, by + 10, isz, isz, 10, on and c.surf2 or c.surf)
+  local tx = bx + 10 + isz + 12
+  local tw = bx + bw - 12 - tx
+  -- nome em ate 2 linhas
+  local nl = PS.lines(m.nf, p.name or "", tw, 2)
+  local ty = by + 9
+  for _, l in ipairs(nl) do PS.text(m.nf, l, tx, ty, on and c.text or c.dim2); ty = ty + m.nf:getHeight() end
+  -- descricao curta: o que a ferramenta/port faz
+  local d = p.short or (p.description or ""):match("^[^\n]+") or ""
+  if d ~= "" and #nl < 2 then
+    for _, l in ipairs(PS.lines(m.df, d, tw, 2)) do PS.text(m.df, l, tx, ty + 1, c.dim); ty = ty + m.df:getHeight() end
+  elseif d ~= "" then
+    PS.fit(m.df, d, tx, ty + 1, tw, c.dim)
+  end
+  -- etiquetas no rodape do cartao
+  local px, py = tx, by + bh - 9 - 15
+  local tags = {}
+  if p.builtin then tags[#tags + 1] = { L("NO HUB"), c.accent }
+  elseif p.source == "portmaster" then tags[#tags + 1] = { "PORTMASTER", c.dim2 } end
+  if not p.builtin and p.size_label and p.size_label ~= "?" then tags[#tags + 1] = { p.size_label, c.dim } end
+  local st = (not p.builtin) and App and App.status and App.status(p) or "none"
+  if st == "installed" then tags[#tags + 1] = { L("INSTALADO"), c.accent }
+  elseif st == "update" then tags[#tags + 1] = { L("ATUALIZAR"), c.warn } end
+  for _, t in ipairs(tags) do
+    local w = PS.pill(t[1], px, py, { font = m.tf, bg = c.bg, fg = t[2], px = 6, h = 15 })
+    px = px + w + 5
+    if px > bx + bw - 30 then break end
+  end
+  if k > 0 then PS.focus(bx, by, bw, bh, 12, k) end
+end
+
 --- navegacao pelo direcional; devolve o novo sel e se saiu pelo topo ("up")
-function PG.move(sel, n, act)
-  local cols = PG.COLS
+function PG.move(sel, n, act, cols)
+  cols = cols or PG.COLS
   if n == 0 then return sel, nil end
   if act == "left" then
     if (sel - 1) % cols == 0 then return sel, "left" end
