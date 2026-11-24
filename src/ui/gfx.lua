@@ -587,7 +587,12 @@ local function logo_img(variant)
   end
   if LOGOS[key] == nil then
     local img
-    if dir then
+    -- Knulli Port Hub: logo propria (vale para todos os temas)
+    if os.getenv("PORTHUB_FW") == "knulli" then
+      local ok, im = pcall(love.graphics.newImage, "assets/logo/knulli/logo_" .. variant .. ".png")
+      if ok then img = im end
+    end
+    if dir and not img then
       local ok, im = pcall(love.graphics.newImage, dir .. "/logo_" .. variant .. ".png")
       if ok then img = im end
     end
