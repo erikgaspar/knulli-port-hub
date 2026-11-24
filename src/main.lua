@@ -1018,6 +1018,7 @@ function love.update(dt)
   end
   Ftp.update()
   require("core.shjob").update()
+  if C.KNULLI then pcall(require("core.monitor").tick, dt) end
   require("core.updnotice").update(dt)
   App.catalog_retry_update(dt)
   Stream.update()
