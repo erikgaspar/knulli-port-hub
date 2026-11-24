@@ -25,6 +25,8 @@ local S = {
 
 -- scripts da raiz que nao sao jogos
 local NOT_GAMES = { ["portmaster.sh"] = true, ["r36s port hub.sh"] = true }
+-- Knulli: o iniciador do hub pode ter o nome da adaptacao
+if C.KNULLI then NOT_GAMES["knulli port hub.sh"] = true end
 
 --- Normaliza nomes para comparar: sem acentos, minusculo, so letras e numeros
 function S.key(s)

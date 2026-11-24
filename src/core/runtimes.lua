@@ -76,6 +76,7 @@ function R.start()
     zip_url = zip, index_url = index, zip_name = C.RUNTIMES_ZIP_NAME, arch = C.RUNTIMES_ARCH,
     auto_latest = C.RUNTIMES_AUTO_LATEST, api_url = C.RUNTIMES_API_URL or "",
     pm_dirs = dirs, tmp_dir = C.TMP_DIR, fetch_sh = C.FETCH_SH, margin = C.SPACE_MARGIN,
+    knulli = C.KNULLI or nil,   -- Knulli: nao troca runtime montado (em uso)
   })
   R.job = j
   U.log("atualizacao de runtimes iniciada:", zip)

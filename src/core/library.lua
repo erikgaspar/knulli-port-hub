@@ -53,15 +53,44 @@ function Lib.cfg_path()
   return nil
 end
 
+-- Knulli: a base (/usr/share/emulationstation/es_systems.cfg) e os overrides
+-- es_systems_<nome>.cfg do usuario; o override com o mesmo <name> substitui o
+-- sistema inteiro (mesma regra do EmulationStation do Batocera)
+local function knulli_text()
+  local K = require("core.knulli_sys")
+  local base, over = K.es_systems_files()
+  local text = U.read_file(base)
+  if not text then return nil end
+  local blocks, order = {}, {}
+  local function add(t)
+    t = t:gsub("<!%-%-.-%-%->", "")
+    for block in t:gmatch("<system>.-</system>") do
+      local n = tag(block, "name") or ""
+      if not blocks[n] then order[#order + 1] = n end
+      blocks[n] = block
+    end
+  end
+  add(text)
+  for _, f in ipairs(over) do add(U.read_file(f) or "") end
+  local t = {}
+  for _, n in ipairs(order) do t[#t + 1] = blocks[n] end
+  return table.concat(t, "\n"), base .. (#over > 0 and (" + " .. #over .. " override(s)") or "")
+end
+
 --- le o es_systems.cfg. Devolve true ou false, motivo
 function Lib.load_systems()
   Lib.systems, Lib.by_name = {}, {}
-  local path = Lib.cfg_path()
+  local path, text
+  if C.KNULLI and not (os.getenv("PORTHUB_ES_SYSTEMS") or ""):match("%S") then
+    text, path = knulli_text()
+  else
+    path = Lib.cfg_path()
+    text = path and (U.read_file(path) or "")
+  end
   if not path then
     Lib.error = L("Este sistema não tem o arquivo de sistemas do EmulationStation (es_systems.cfg).")
     return false, Lib.error
   end
-  local text = U.read_file(path) or ""
   text = text:gsub("<!%-%-.-%-%->", "")    -- comentarios
   for block in text:gmatch("<system>(.-)</system>") do
     local s = {
@@ -75,8 +104,18 @@ function Lib.load_systems()
     if emus then
       for ename, eb in emus:gmatch("<emulator%s+name=\"([^\"]+)\"%s*>(.-)</emulator>") do
         local cores = {}
-        for core in eb:gmatch("<core>%s*(.-)%s*</core>") do cores[#cores + 1] = xml_unescape(core) end
-        s.emulators[#s.emulators + 1] = { name = xml_unescape(ename), cores = cores }
+        local def
+        if C.KNULLI then
+          -- Batocera: <core default="true">nome</core> marca o core padrao
+          local body = eb:gsub("</?cores%s*>", "")
+          for attrs, core in body:gmatch("<core([^>]*)>%s*(.-)%s*</core>") do
+            cores[#cores + 1] = xml_unescape(core)
+            if attrs:find('default%s*=%s*"true"') then def = cores[#cores] end
+          end
+        else
+          for core in eb:gmatch("<core>%s*(.-)%s*</core>") do cores[#cores + 1] = xml_unescape(core) end
+        end
+        s.emulators[#s.emulators + 1] = { name = xml_unescape(ename), cores = cores, default_core = def }
       end
       -- emulador sem lista de cores (<emulator name="x"/>)
       for ename in emus:gmatch("<emulator%s+name=\"([^\"]+)\"%s*/>") do
@@ -106,6 +145,11 @@ end
 -- ---------------------------------------------------------------------------
 local IGNORE = { ["gamelist.xml"] = true }
 local IGNORE_DIRS = { images = true, videos = true, manuals = true, media = true, snap = true, snaps = true }
+if C.KNULLI then
+  -- pastas de midia do scraper do Batocera/Knulli
+  for _, d in ipairs({ "downloaded_images", "downloaded_videos", "downloaded_manuals", "thumbnails", "marquees",
+      "wheels", "boxart", "fanart", "titleshots", "bezels", "maps" }) do IGNORE_DIRS[d] = true end
+end
 
 local function parse_gamelist(sys)
   local info = {}
@@ -115,11 +159,14 @@ local function parse_gamelist(sys)
     local p = tag(block, "path")
     if p then
       p = p:gsub("^%./", "")
+      if C.KNULLI and p:sub(1, #sys.path + 1) == sys.path .. "/" then p = p:sub(#sys.path + 2) end
       local img = tag(block, "image") or tag(block, "thumbnail")
       if img then img = img:gsub("^%./", sys.path .. "/") end
       info[p] = { name = tag(block, "name"), image = img, desc = tag(block, "desc"),
         developer = tag(block, "developer"), genre = tag(block, "genre"), players = tag(block, "players"),
-        releasedate = tag(block, "releasedate") }
+        releasedate = tag(block, "releasedate"),
+        -- Knulli: jogo escondido no EmulationStation tambem fica fora da Biblioteca
+        hidden = C.KNULLI and (tag(block, "hidden") or ""):lower() == "true" or nil }
     end
   end
   return info
@@ -133,6 +180,7 @@ local function add_game(sys, rel, size, glist)
   local ext = base:match("(%.[^%.]+)$")
   if not ext or not sys.exts[ext:lower()] then return end
   local gi = glist[rel] or {}
+  if gi.hidden then return end
   local name = gi.name or base:gsub("%.[^%.]+$", "")
   sys.games[#sys.games + 1] = { file = sys.path .. "/" .. rel, rel = rel, name = name, size = size,
     image = gi.image, desc = gi.desc, developer = gi.developer, genre = gi.genre, players = gi.players,
@@ -222,10 +270,15 @@ end
 function Lib.choice(sys, game)
   local c = get_choices()
   local pick = (game and c.games[game.file]) or c.systems[sys.key] or {}
+  if C.KNULLI and not pick.emulator then
+    -- sem escolha no hub: o que o Knulli usaria (knulli.conf > padrao do es_systems)
+    local K = require("core.knulli_sys")
+    pick = { emulator = K.conf_get(sys.name .. ".emulator"), core = K.conf_get(sys.name .. ".core") }
+  end
   local emu = sys.emulators[1]
   for _, e in ipairs(sys.emulators) do if e.name == pick.emulator then emu = e end end
   if not emu then return nil, nil end
-  local core = emu.cores[1]
+  local core = (C.KNULLI and emu.default_core) or emu.cores[1]
   for _, k in ipairs(emu.cores) do if k == pick.core then core = k end end
   return emu.name, core
 end
@@ -284,7 +337,35 @@ end
 -- ---------------------------------------------------------------------------
 -- comando do jogo (igual ao do EmulationStation)
 -- ---------------------------------------------------------------------------
+-- Knulli: o comando do es_systems e "emulatorlauncher %CONTROLLERSCONFIG% -system
+-- %SYSTEM% -rom %ROM% -gameinfoxml %GAMEINFOXML% -systemname %SYSTEMNAME%".
+-- Os controles sao lidos na hora (sdl2-jstest), o gameinfoxml fica no padrao do
+-- emulatorlauncher (/dev/null) e -emulator/-core so vao quando o usuario escolheu
+-- no hub (senao o emulatorlauncher usa o que estiver no knulli.conf / padrao).
+local function knulli_command(sys, game)
+  local emu, core = Lib.choice(sys, game)
+  local c = get_choices()
+  local explicit = (game and c.games[game.file]) or c.systems[sys.key]
+  local cmd = sys.command
+  local function rep(k, v) cmd = cmd:gsub("%%" .. k .. "%%", function() return v end) end
+  rep("CONTROLLERSCONFIG", U.trim(require("core.knulli_sys").controllers_args()))
+  rep("SYSTEM", U.shq(sys.name))
+  rep("ROM", U.shq(game.file))
+  rep("ROM_RAW", game.file)
+  rep("BASENAME", U.shq((game.file:match("([^/]+)$") or ""):gsub("%.[^%.]+$", "")))
+  rep("GAMEINFOXML", "/dev/null")
+  rep("SYSTEMNAME", U.shq(sys.fullname or sys.name))
+  rep("EMULATOR", emu or "")
+  rep("CORE", core or "")
+  if explicit and explicit.emulator and not cmd:find("%-emulator%s") then
+    cmd = cmd .. " -emulator " .. U.shq(explicit.emulator)
+    if explicit.core then cmd = cmd .. " -core " .. U.shq(explicit.core) end
+  end
+  return U.trim(cmd), emu, core
+end
+
 function Lib.command(sys, game)
+  if C.KNULLI then return knulli_command(sys, game) end
   local emu, core = Lib.choice(sys, game)
   local cmd = sys.command
   local function rep(k, v) cmd = cmd:gsub("%%" .. k .. "%%", function() return v end) end

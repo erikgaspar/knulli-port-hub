@@ -68,8 +68,51 @@ end
 local GAL_COMPAT = { arkos = "compativel", darkos = "experimental", darkosre = "experimental" }
 local COLL_COMPAT = { arkos = "experimental", darkos = "experimental", darkosre = "experimental" }
 
+-- Knulli: catalogo do hub (so os temas marcados para o knulli) + lista de temas
+-- do proprio Knulli. "compativel" = esta em knulli-compatible-themes.txt (lista
+-- que acompanha o sistema); os outros entram como "experimental".
+local function merge_knulli(data)
+  local K = require("core.knulli_sys")
+  local okset = K.compatible_themes()
+  local list, seen, ids = {}, {}, {}
+  for _, th in ipairs(M.base or {}) do
+    if th.compat.knulli then
+      local key = Scan.repo_of(th.project_url)
+      th.res, th.src = th.res or {}, "catalog"
+      if key then seen[key] = true end
+      ids[th.id] = true
+      list[#list + 1] = th
+    end
+  end
+  for _, g in ipairs(data.knulli or {}) do
+    local key = (g.owner .. "/" .. g.repo):lower()
+    if not seen[key] and g.repo:match("^[%w%._%-]+$") then
+      seen[key] = true
+      local id = ids[g.repo] and (g.owner .. "-" .. g.repo) or g.repo
+      ids[id] = true
+      local st = okset[g.name:lower()] and "compativel" or "experimental"
+      list[#list + 1] = { id = id, name = g.name, author = g.author or g.owner, project_url = g.url,
+        -- mesma pasta que o EmulationStation do Knulli usa (nome do repositorio)
+        download_url = g.url .. "/archive/HEAD.zip", folder = g.repo, preview = g.preview, cover = g.preview or "",
+        slug = "estheme-" .. U.slug(id), compat = { knulli = st }, res = {}, src = "knulli",
+        updated = g.updated, size_est = g.size_mb and g.size_mb * 1024 * 1024 or nil,
+        description = string.format(L("Tema de EmulationStation por %s, da lista de temas do Knulli (a mesma do menu Atualizações e downloads > Temas)."), g.author or g.owner)
+          .. (st == "compativel" and L(" Marcado como compatível pelo Knulli.") or "") }
+    end
+  end
+  M.themes = list
+end
+
 function M.merge()
   local data = Gal.data or Gal.load_cache() or { gallery = {}, collections = {} }
+  if C.KNULLI then
+    -- pasta de temas do Knulli mesmo sem o catalogo do hub
+    M.systems = M.systems or {}
+    if not (M.systems.knulli and M.systems.knulli.themes_dir) then
+      M.systems.knulli = { name = "KNULLI", themes_dir = require("core.knulli_sys").THEMES }
+    end
+    return merge_knulli(data)
+  end
   local list, seen, ids = {}, {}, {}
   local gal_by = {}
   for _, g in ipairs(data.gallery or {}) do gal_by[(g.owner .. "/" .. g.repo):lower()] = g end
@@ -131,7 +174,10 @@ function M.refresh_gallery(force, on_done)
 end
 
 function M.gallery_time() return Gal.data and Gal.data.time end
-function M.has_gallery() return Gal.data and type(Gal.data.gallery) == "table" and #Gal.data.gallery > 0 end
+function M.has_gallery()
+  if C.KNULLI then return Gal.data and type(Gal.data.knulli) == "table" and #Gal.data.knulli > 0 end
+  return Gal.data and type(Gal.data.gallery) == "table" and #Gal.data.gallery > 0
+end
 
 function M.load_installed()
   local ok, text = pcall(love.filesystem.read, INSTALLED)

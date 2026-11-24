@@ -90,6 +90,8 @@ function B.detect_dir(force)
     end
   end
   if info.dir then info.roms = info.dir:match("^(.*)/[^/]+$") end
+  -- Knulli: /userdata/bios fica ao lado de /userdata/roms (o pai e /userdata)
+  if C.KNULLI and info.dir == "/userdata/bios" then info.roms = "/userdata/roms" end
   B.dir_info = info
   return info
 end

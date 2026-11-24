@@ -198,6 +198,8 @@ end
 
 --- onde fica o PortMaster.sh (iniciador). No ArkOS/dArkOS ele sai da pasta PortMaster.
 local function launcher_of(dir)
+  -- Knulli/Batocera: o instalador oficial move o iniciador para a pasta de ports
+  if job.knulli and job.launcher then return job.launcher, true end
   local up = parent(dir) .. "/PortMaster.sh"
   if isfile(up) then return up, true end
   if isfile(dir .. "/PortMaster.sh") then return dir .. "/PortMaster.sh", false end
@@ -223,7 +225,9 @@ local function inspect(dir)
   r.fs = fs_type(dir)
   r.posix = posix_fs(r.fs)
   for _, f in ipairs(P.essentials(job.arch, job.os_id)) do
-    if not exists(dir .. "/" .. f) then r.missing[#r.missing + 1] = f end
+    -- Knulli: o 7zzs so entrou nos pacotes novos (o PortMaster usa o 7z do sistema)
+    local skip = job.knulli and f:match("^7zzs%.")
+    if not skip and not exists(dir .. "/" .. f) then r.missing[#r.missing + 1] = f end
   end
   if not (isfile(dir .. "/pylibs.zip") or isdir(dir .. "/pylibs")) then r.missing[#r.missing + 1] = "pylibs.zip / pylibs/" end
   if not isfile(r.launcher) then r.missing[#r.missing + 1] = r.launcher:match("[^/]+$") .. " (" .. parent(r.launcher) .. ")" end
@@ -401,6 +405,18 @@ local function extract(into, ver)
   end
   local v = trim((read_all(staging .. "/PortMaster/version") or ""):match("^[^\n]*"))
   if v ~= ver then return nil, "version_mismatch", v .. "|" .. ver end
+  -- Knulli: o instalador oficial (installer.sh) aplica a pasta do sistema
+  -- (PortMaster/knulli/control.txt e PortMaster.txt) por cima dos genericos.
+  -- Feito aqui, a referencia de md5 ja sai com os arquivos certos.
+  if job.override and job.override:match("^[%w_]+$") then
+    local od = staging .. "/PortMaster/" .. job.override
+    if isfile(od .. "/control.txt") and not sh("cp -f " .. shq(od .. "/control.txt") .. " " .. shq(staging .. "/PortMaster/control.txt")) then
+      return nil, "extract_failed", "override control.txt"
+    end
+    if isfile(od .. "/PortMaster.txt") and not sh("cp -f " .. shq(od .. "/PortMaster.txt") .. " " .. shq(staging .. "/PortMaster/PortMaster.sh")) then
+      return nil, "extract_failed", "override PortMaster.txt"
+    end
+  end
   -- md5 de referencia de cada arquivo do pacote
   local ref = {}
   local n = 0
@@ -420,7 +436,9 @@ local function md5_check(map) -- map: destino -> md5
   local lines = {}
   for p, h in pairs(map) do lines[#lines + 1] = h .. "  " .. p end
   write_all(tmp, table.concat(lines, "\n") .. "\n")
-  for line in capture("md5sum -c " .. shq(tmp) .. " 2>/dev/null"):gmatch("[^\n]+") do
+  -- Knulli: o sistema roda em pt_BR (LC_ALL) e o md5sum -c traduz "OK" -> "SUCESSO"
+  local lc = job.knulli and "LC_ALL=C " or ""
+  for line in capture(lc .. "md5sum -c " .. shq(tmp) .. " 2>/dev/null"):gmatch("[^\n]+") do
     local f, st = line:match("^(.+): (%S+)")
     if f and st ~= "OK" then
       if exists(f) then changed[#changed + 1] = f else missing[#missing + 1] = f end
@@ -442,8 +460,11 @@ local function snapshot(dir)
   -- a pasta do PortMaster (se estiver em ports) e a do proprio hub (temporarios) ficam de fora
   local skip = (parent(dir) == ports) and dir:match("[^/]+$") or ""
   local app = (job.app_dir and parent(job.app_dir) == ports) and job.app_dir:match("[^/]+$") or ""
+  -- Knulli: o iniciador PortMaster.sh fica na pasta de ports e e arquivo do PortMaster
+  local pmsh = (job.knulli and job.launcher and parent(job.launcher) == ports) and job.launcher:match("[^/]+$") or ""
   s.ports = trim(capture("cd " .. shq(ports) .. " 2>/dev/null && for e in * .[!.]*; do [ -e \"$e\" ] || continue; "
     .. "[ \"$e\" = " .. shq(skip) .. " ] && continue; [ \"$e\" = " .. shq(app) .. " ] && continue; "
+    .. "[ \"$e\" = " .. shq(pmsh) .. " ] && continue; "
     .. "ls -lAR -- \"$e\"; done 2>/dev/null | md5sum"))
   -- runtimes: nome, tamanho e data de cada libs/*.squashfs (e .md5)
   -- (sem as permissoes: o ajuste oficial chmod -R 777 nao muda o conteudo)
@@ -678,41 +699,45 @@ end
 
 local function op_install()
   phase("check", I18N.tr("Verificando o console"))
+  -- ArkOS/dArkOS: /opt/system/Tools. Knulli: a pasta de dados do usuario
+  -- ($XDG_DATA_HOME = /userdata/system/.local/share), como o instalador oficial
+  local base = job.tools or (job.knulli and job.pm_base) or nil
+  if job.knulli and base then sh("mkdir -p " .. shq(base)) end
   local miss = tools_needed()
   if miss then return fail("missing_tool", miss) end
-  if not job.tools then return fail("unsupported_os") end
+  if not base then return fail("unsupported_os") end
   if job.arch ~= "aarch64" and job.arch ~= "armhf" then return fail("arch", tostring(job.arch)) end
   local found = find_pm()
   if found then return fail("already_installed", found) end
-  if not sh("test -w " .. shq(job.tools)) then return fail("no_write", job.tools) end
+  if not sh("test -w " .. shq(base)) then return fail("no_write", base) end
   local d, code, det = discover(true)
   if not d then if code == "cancel" then return cancel_done() end return fail(code, det) end
   local st = d.stable
   if not st then return fail("no_stable") end
   if not st.md5 and not st.sha256 then return fail("no_checksum") end
   remote_size(st)
-  local dest = job.tools .. "/PortMaster"
+  local dest = base .. "/PortMaster"
   if not ask({ kind = "install", version = st.version, size = st.size, dest = dest,
-      launcher = job.tools .. "/PortMaster.sh", sha256 = st.sha256 ~= nil, md5 = st.md5 ~= nil,
-      others = d.others, free = free_bytes(job.tools) }) then
+      launcher = job.knulli and job.launcher or (base .. "/PortMaster.sh"), sha256 = st.sha256 ~= nil, md5 = st.md5 ~= nil,
+      others = d.others, free = free_bytes(base) }) then
     return cancel_done()
   end
   local v, c2, d2 = download_validate(st)
   if not v then if c2 == "cancel" then return cancel_done() end return fail(c2, d2) end
-  local okk, sp = space_ok(job.tools, v.total + job.margin)
+  local okk, sp = space_ok(base, v.total + job.margin)
   if not okk then return fail("no_space", sp) end
-  local ref, n, edet = extract(job.tools .. "/.porthub_pm_staging", st.version)
+  local ref, n, edet = extract(base .. "/.porthub_pm_staging", st.version)
   if not ref then return fail(n, edet) end
   if check_cancel() then return cancel_done() end
   -- aplicacao: move a pasta pronta (rename na mesma particao) e o iniciador
   no_cancel = true
   phase("apply", I18N.tr("Instalando o PortMaster"), 2)
   if exists(dest) then return fail("already_installed", dest) end
-  local jd = job.tools .. "/.porthub_pm"
+  local jd = base .. "/.porthub_pm"
   sh("rm -rf " .. shq(jd)); sh("mkdir -p " .. shq(jd .. "/backup"))
   jwrite(jd, "info", string.format("op=install\nto=%s\ndir=%s\ntime=%d\n", st.version, dest, os.time()))
   jwrite(jd, "state", "installing\n")
-  local launcher = job.tools .. "/PortMaster.sh"
+  local launcher = job.knulli and job.launcher or (base .. "/PortMaster.sh")
   local had_launcher = isfile(launcher)
   if had_launcher then
     -- iniciador solto de outra instalacao: guardado antes de ser substituido
@@ -742,7 +767,12 @@ local function op_install()
     return fail("validate_failed", tostring(#m1 + #c1 + #ins.missing), { recovered = recovered, missing = m1, changed = c1 })
   end
   save_manifest(st.version, dest, launcher, ref)
-  sh("rm -rf " .. shq(jd))
+  if job.knulli and had_launcher then
+    -- Knulli: o iniciador antigo continua guardado em .porthub_pm/backup
+    sh("rm -f " .. shq(jd .. "/info") .. " " .. shq(jd .. "/state"))
+  else
+    sh("rm -rf " .. shq(jd))
+  end
   if had_launcher then
     -- o iniciador antigo fica guardado (nao apagamos nada do usuario)
     sh("mkdir -p " .. shq(jd .. "/backup") .. " && echo done > " .. shq(jd .. "/state"))
@@ -837,7 +867,9 @@ end
 local function compare(dir, launcher, ref)
   local map = {}
   for f, h in pairs(ref) do
-    if not P.SELF_MANAGED[f] then map[target_of(dir, launcher, f)] = h end
+    -- Knulli: resources/do_init e apagado pelo proprio PortMaster na primeira abertura
+    local self_managed = P.SELF_MANAGED[f] or (job.knulli and f == "PortMaster/resources/do_init")
+    if not self_managed then map[target_of(dir, launcher, f)] = h end
   end
   local m, c = md5_check(map)
   -- pylibs.zip: o PortMaster o extrai e apaga; so falta se pylibs/ tambem nao existir

@@ -205,12 +205,27 @@ local function run()
 
   -- 3) compara com os runtimes instalados (tamanho, depois md5)
   local todo, uptodate, newc, updc = {}, {}, 0, 0
+  -- Knulli: runtime montado agora (ex.: mono montado em /userdata/system/mono por
+  -- um port) nunca e trocado - o arquivo esta em uso. Fica como esta.
+  local mounted = {}
+  if job.knulli then
+    for line in (read_all("/proc/mounts") or ""):gmatch("[^\n]+") do
+      local src = line:match("^(%S+)")
+      -- montagem por loop: /proc/mounts mostra /dev/loopN; o arquivo fica em /sys
+      local loop = src and src:match("^/dev/(loop%d+)$")
+      if loop then src = (read_all("/sys/block/" .. loop .. "/loop/backing_file") or ""):gsub("%s+$", "") end
+      if src and src ~= "" then mounted[(src:gsub("\\040", " "))] = true end
+    end
+  end
   for i, n in ipairs(names) do
     send({ t = "progress", phase = "check", done = i - 1, total = #names, label = L("Conferindo runtimes instalados") })
     local cur = LIBS .. "/" .. n
     local s = fsize(cur)
     local e = index[n]
-    if not s then
+    if s and mounted[cur] then
+      log("em uso (montado), nao sera trocado:", n)
+      uptodate[#uptodate + 1] = n
+    elseif not s then
       todo[#todo + 1] = { name = n, kind = "new" }
       newc = newc + 1
     elseif s ~= e.size or md5(cur) ~= e.md5 then

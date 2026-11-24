@@ -39,9 +39,18 @@ local function exists(p) local f = io.open(p, "rb"); if f then f:close(); return
 --- pastas de temas que o EmulationStation le neste console (sem repetir o mesmo destino)
 function S.roots(catalog_dir, tm)
   local cands = {}
+  local firmware = {}
   if catalog_dir then cands[#cands + 1] = catalog_dir end
-  cands[#cands + 1] = "/etc/emulationstation/themes"
-  cands[#cands + 1] = "/home/ark/.emulationstation/themes"
+  if require("config").KNULLI then
+    -- Knulli: /userdata/themes (do usuario) e os temas que vem no sistema
+    local K = require("core.knulli_sys")
+    if not catalog_dir then cands[#cands + 1] = K.THEMES end
+    cands[#cands + 1] = K.SYS_THEMES
+    firmware[K.SYS_THEMES] = true
+  else
+    cands[#cands + 1] = "/etc/emulationstation/themes"
+    cands[#cands + 1] = "/home/ark/.emulationstation/themes"
+  end
   if tm and tm.themes_location then cands[#cands + 1] = (tm.themes_location:gsub("/+$", "")) end
   local out, seen = {}, {}
   for _, d in ipairs(cands) do
@@ -51,7 +60,8 @@ function S.roots(catalog_dir, tm)
       if real == "" then real = p end
       if not seen[real] then
         seen[real] = true
-        out[#out + 1] = { path = p, real = real, readable = U.exec_ok("test -r " .. U.shq(p) .. " -a -x " .. U.shq(p)) }
+        out[#out + 1] = { path = p, real = real, readable = U.exec_ok("test -r " .. U.shq(p) .. " -a -x " .. U.shq(p)),
+          firmware = firmware[d] }
       end
     end
   end
@@ -183,6 +193,9 @@ function S.scan(roots, os_id, registry, tm)
             elseif tm and tm.versions[folder] then
               loc.origin, loc.evidence = "thememaster", "ThemeMaster/data/" .. folder .. ".version"
               loc.tm_version = tm.versions[folder]
+            elseif r.firmware then
+              -- Knulli: pasta de temas da imagem do sistema (somente leitura)
+              loc.origin, loc.evidence = "firmware", r.path
             elseif factory[folder] then
               loc.origin = "firmware"
               loc.evidence = loc.repo and (".git: " .. loc.repo) or L("lista de build do sistema")

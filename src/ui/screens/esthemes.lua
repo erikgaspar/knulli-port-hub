@@ -14,6 +14,7 @@ local Covers = require("core.covers")
 local OS = require("core.osdetect")
 local ES = require("core.esthemes")
 local Gal = require("core.esgallery")
+local C = require("config")
 local SIZE_FILE = "es_theme_size.txt"
 local lg = love.graphics
 
@@ -55,11 +56,13 @@ function S:enter()
   end)
   if not ES.loading then self.state = "ready" end
   self:rescan()
-  -- fontes do ThemeMaster (galeria + colecoes): no maximo a cada 6 h
+  -- fontes do ThemeMaster (galeria + colecoes) ou, no Knulli, a lista de temas
+  -- do proprio Knulli: no maximo a cada 6 h
   ES.refresh_gallery(false, function(st)
     self:refresh()
     if (st == "failed" or st == "partial") and not ES.has_gallery() then
-      App.toast(L("Galeria do ThemeMaster indisponível (sem internet?): mostrando o catálogo do hub."), "warn")
+      App.toast(C.KNULLI and L("Lista de temas do Knulli indisponível (sem internet?): mostrando só os temas do console.")
+        or L("Galeria do ThemeMaster indisponível (sem internet?): mostrando o catálogo do hub."), "warn")
     elseif st == "failed" or st == "partial" then
       App.toast(L("Atualização online da galeria indisponível: mostrando a última cópia salva."), "warn")
     end
@@ -107,7 +110,11 @@ function S:leave() Covers.reset_pending() end
 
 --- lista do filtro atual (so temas do sistema escolhido)
 --- res do tema no tamanho de tela escolhido: "yes" | "untested" | "no"
-function S:res_of(th) return (th.res or {})[self.size] or "untested" end
+function S:res_of(th)
+  -- Knulli: nao ha teste por tamanho de tela; vale a lista de compativeis do sistema
+  if C.KNULLI and th.src == "knulli" then return th.compat.knulli == "compativel" and "yes" or "untested" end
+  return (th.res or {})[self.size] or "untested"
+end
 
 function S:refresh()
   local f = FILTERS[self.filter].id
@@ -416,8 +423,10 @@ function S:draw_view()
         return #t > 0 and table.concat(t, ", ") or nil
       end)() },
     { L("Fonte"), (not th.is_local) and ({ catalog = L("catálogo do R36S PORT HUB"), ["catalog+gallery"] = L("catálogo do hub + galeria OGA"),
-        gallery = L("galeria OGA (ThemeMaster)"), collection = L("coleção do GitHub: ") .. tostring(th.collection) })[th.src or "catalog"] or nil },
-    { L("Tamanho"), (not th.is_local) and (th.size and U.format_bytes(th.size) or L("informado no download")) or nil },
+        gallery = L("galeria OGA (ThemeMaster)"), collection = L("coleção do GitHub: ") .. tostring(th.collection),
+        knulli = L("lista de temas do Knulli") })[th.src or "catalog"] or nil },
+    { L("Tamanho"), (not th.is_local) and (th.size and U.format_bytes(th.size)
+      or (th.size_est and ("~" .. U.format_bytes(th.size_est))) or L("informado no download")) or nil },
     { L("Tipo"), th.weight and (require("lib.i18n").tr(th.weight) .. (th.files and (" (" .. th.files .. L(" arquivos)")) or "")) or nil },
     { "EmulationStation", (not th.is_local) and ((th.es_min or th.es_max) and ((th.es_min or "?") .. " a " .. (th.es_max or "?")) or L("versão não informada")) or nil },
   }
@@ -500,7 +509,9 @@ function S:ask_install(th, force)
   end
   if st == "experimental" then body = body .. L("\n\nAtenção: tema EXPERIMENTAL neste sistema (ainda não confirmado).") end
   local r = self:res_of(th)
-  if r ~= "yes" then body = body .. string.format(L("\n\nA galeria não confirma este tema em %s: pode ficar cortado ou esticado."), self.size) end
+  if r ~= "yes" and C.KNULLI and th.src == "knulli" then
+    body = body .. L("\n\nEste tema não está na lista de temas compatíveis do Knulli: pode não funcionar direito nesta tela.")
+  elseif r ~= "yes" then body = body .. string.format(L("\n\nA galeria não confirma este tema em %s: pode ficar cortado ou esticado."), self.size) end
   body = body .. L("\n\nO tema não será aplicado automaticamente.")
   App.show_dialog({ title = L("Baixar e instalar tema?"), kind = st == "experimental" and "warn" or "info", body = body,
     buttons = { { label = L("INSTALAR"), fn = function()

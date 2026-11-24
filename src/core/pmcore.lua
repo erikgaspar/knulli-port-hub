@@ -120,7 +120,8 @@ end
 
 -- ---------------------------------------------------------------------------
 -- Estrutura de uma instalacao (conferida no PortMaster.zip oficial 2026.06.23-0015)
-P.NAME_OF_CFW = { darkosre = "dArkOSRE", darkos = "dArkOS", arkos = "ArkOS" }
+-- knulli: o pacote oficial traz mod_knulli.txt e a pasta knulli/ (control.txt proprio)
+P.NAME_OF_CFW = { darkosre = "dArkOSRE", darkos = "dArkOS", arkos = "ArkOS", knulli = "knulli" }
 
 --- arquivos essenciais (relativos a pasta PortMaster)
 function P.essentials(arch, os_id)
@@ -154,7 +155,12 @@ function P.package_supports(list_set, arch, os_id)
   if arch == "armhf" then need = { "PortMaster/gptokeyb.armhf", "PortMaster/7zzs.armhf" }
   elseif arch == "aarch64" then need = { "PortMaster/gptokeyb", "PortMaster/7zzs.aarch64", "PortMaster/runtimes/love_11.5/love.aarch64" }
   else return false, "arch" end
-  for _, f in ipairs(need) do if not list_set[f] then return false, "arch", f end end
+  for _, f in ipairs(need) do
+    -- knulli: pacotes antigos (ex.: 2025.03, o que vem no proprio Knulli) nao tem o
+    -- 7zzs; o PortMaster usa o 7z do sistema
+    local optional = os_id == "knulli" and f:match("/7zzs%.")
+    if not list_set[f] and not optional then return false, "arch", f end
+  end
   local cfw = P.NAME_OF_CFW[os_id or ""]
   if cfw and not list_set["PortMaster/mod_" .. cfw .. ".txt"] then return false, "cfw", "mod_" .. cfw .. ".txt" end
   for _, f in ipairs({ "PortMaster/pugwash", "PortMaster/harbourmaster", "PortMaster/control.txt",

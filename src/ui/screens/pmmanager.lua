@@ -11,6 +11,7 @@ local G = require("ui.gfx")
 local U = require("lib.util")
 local PM = require("core.pmmanager")
 local Clock = require("core.clock")
+local C = require("config")
 
 local S = {}
 
@@ -124,7 +125,11 @@ function S.verify_lines(s)
   local t = {}
   if s.installed == false then
     add(t, L("O PortMaster não foi encontrado neste console."), "red")
-    add(t, L("Pastas verificadas: /opt/system/Tools/PortMaster, /roms/ports/PortMaster, /opt/tools/PortMaster e a pasta informada pelo PortMaster."), "dim")
+    if C.KNULLI then
+      add(t, L("Pastas verificadas: /userdata/system/.local/share/PortMaster (padrão do Knulli) e /userdata/roms/ports/PortMaster."), "dim")
+    else
+      add(t, L("Pastas verificadas: /opt/system/Tools/PortMaster, /roms/ports/PortMaster, /opt/tools/PortMaster e a pasta informada pelo PortMaster."), "dim")
+    end
     return t
   end
   local ins, r = s.inspect or {}, s.result or {}

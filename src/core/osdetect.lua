@@ -75,7 +75,8 @@ function D.detect()
 
   -- sistemas baseados em os-release
   local osr = os_release()
-  local name = ((osr.NAME or "") .. " " .. (osr.ID or "")):lower()
+  -- Knulli novo (base Batocera 42): NAME=Batocera.linux, ID=buildroot e OS_NAME=knulli
+  local name = ((osr.NAME or "") .. " " .. (osr.ID or "") .. " " .. (osr.OS_NAME or "")):lower()
   local function osr_match(id, pat, extra_paths)
     if name:find(pat) then
       add(id, 2, "/etc/os-release: " .. (osr.PRETTY_NAME or osr.NAME or id))
@@ -92,6 +93,9 @@ function D.detect()
   if not name:find("knulli") then
     osr_match("batocera", "batocera", { "/usr/share/batocera/batocera.version", "/userdata/roms" })
   end
+  -- versao do Knulli (ex.: "scarab 2026/05/11 00:09"): mais util que o VERSION_ID do buildroot
+  local kv = U.trim(read("/usr/share/knulli/knulli.version") or "")
+  if scores.knulli and kv ~= "" then versions.knulli = kv; add("knulli", 1, "knulli.version: " .. kv) end
   local bv = U.trim(read("/usr/share/batocera/batocera.version") or "")
   if bv ~= "" and not scores.knulli then add("batocera", 1, L("batocera.version: ") .. bv); versions.batocera = versions.batocera or bv end
 

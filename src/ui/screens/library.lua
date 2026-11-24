@@ -9,6 +9,7 @@ local Lib = require("core.library")
 local Icons = require("ui.icons")
 local CV = require("ui.coverview")
 local SH = require("ui.shelf")
+local C = require("config")
 
 local S = {}
 
@@ -117,7 +118,8 @@ function S:draw()
     return
   end
   if #self.items <= 2 and Lib.total_games() == 0 then
-    G.text(T.f.body, L("Nenhum jogo encontrado nas pastas de ROMs (/roms/<sistema>). Copie as ROMs pelo FTP e aperte Y para procurar de novo."),
+    G.text(T.f.body, C.KNULLI and L("Nenhum jogo encontrado nas pastas de ROMs (/userdata/roms/<sistema>). Copie as ROMs pelo FTP e aperte Y para procurar de novo.")
+      or L("Nenhum jogo encontrado nas pastas de ROMs (/roms/<sistema>). Copie as ROMs pelo FTP e aperte Y para procurar de novo."),
       40, 190, T.c.dim, "center", T.W - 80)
   end
   local row = math.floor((self.sel - 1) / COLS)
@@ -170,7 +172,8 @@ function S.choose_emulator(sys, game)
   local cur_e, cur_c = Lib.choice(sys, game)
   local items = { { tag = L("PADRÃO"), tagc = T.c.accent2,
     text = game and L("Padrão do sistema") or L("Padrão (primeiro da lista)"),
-    sub = L("Usa a escolha do sistema ou o primeiro emulador do es_systems.cfg") } }
+    sub = C.KNULLI and L("Usa a escolha do sistema ou o padrão do Knulli (knulli.conf / es_systems.cfg)")
+      or L("Usa a escolha do sistema ou o primeiro emulador do es_systems.cfg") } }
   for _, o in ipairs(Lib.options(sys)) do
     local on = o.emulator == cur_e and o.core == cur_c
     items[#items + 1] = { tag = on and L("EM USO") or nil, tagc = T.c.green, text = o.emulator .. (o.core and (" / " .. o.core) or ""),

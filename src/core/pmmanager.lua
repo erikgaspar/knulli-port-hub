@@ -104,6 +104,16 @@ function M.tools_dir()
   return nil
 end
 
+-- Knulli: o instalador oficial (Install.PortMaster.sh, o mesmo que o Knulli traz em
+-- /usr/share/portmaster) extrai em $XDG_DATA_HOME/PortMaster e move o PortMaster.sh
+-- para a pasta de ports
+function M.knulli_base()
+  local x = os.getenv("PORTHUB_XDG_ORIG")
+  if x and x:match("^/userdata/") then return (x:gsub("/+$", "")) end
+  return require("core.knulli_sys").PM_BASE
+end
+function M.knulli_launcher() return C.PORTS_DIR .. "/PortMaster.sh" end
+
 function M.manifest_file() return love.filesystem.getSaveDirectory() .. "/pm_manifest.txt" end
 
 local function pm_dirs()
@@ -164,6 +174,7 @@ function M.env()
     local parent = q.dir:match("^(.*)/[^/]+$") or ""
     r.launcher = U.exec_ok("test -f " .. U.shq(parent .. "/PortMaster.sh")) and (parent .. "/PortMaster.sh")
       or (U.exec_ok("test -f " .. U.shq(q.dir .. "/PortMaster.sh")) and (q.dir .. "/PortMaster.sh") or nil)
+    if C.KNULLI and U.exec_ok("test -f " .. U.shq(M.knulli_launcher())) then r.launcher = M.knulli_launcher() end
     r.libs = tonumber(U.trim(U.capture("ls -1 " .. U.shq(q.dir .. "/libs") .. " 2>/dev/null | grep -c '\\.squashfs$'") or "")) or 0
   end
   return r
@@ -253,6 +264,9 @@ function M.start(op, opts)
     out_channel = j.out, in_channel = j.inn,
     tmp_dir = C.TMP_DIR, fetch_sh = C.FETCH_SH, margin = C.SPACE_MARGIN,
     pm_dirs = pm_dirs(), tools = M.tools_dir(), root = ROOT,
+    -- Knulli: pasta e iniciador do instalador oficial do PortMaster para Batocera/Knulli
+    knulli = C.KNULLI or nil, pm_base = C.KNULLI and M.knulli_base() or nil,
+    launcher = C.KNULLI and M.knulli_launcher() or nil, override = C.KNULLI and "knulli" or nil,
     arch = env.arch, os_id = env.os_id, ports_dir = C.PORTS_DIR, app_dir = C.APP_DIR,
     manifest_file = M.manifest_file(), deep = opts.deep, offline = opts.offline,
     test_fail = os.getenv("PORTHUB_PM_TESTFAIL"),
@@ -415,6 +429,7 @@ function M.recover()
   if q.dir then bases[#bases + 1] = q.dir:match("^(.*)/[^/]+$") end
   local td = M.tools_dir()
   if td then bases[#bases + 1] = td end
+  if C.KNULLI then bases[#bases + 1] = M.knulli_base() end
   local seen = {}
   for _, b in ipairs(bases) do
     if b and not seen[b] then
@@ -431,7 +446,8 @@ function M.recover()
         -- confere: arquivos do backup voltaram (md5) e os adicionados sumiram
         local okc = rc
         if st ~= "backup" then
-          local out = U.capture("md5sum -c " .. U.shq(jd .. "/backup.md5") .. " 2>/dev/null | grep -vc ': OK$'") or ""
+          -- Knulli: md5sum traduzido (pt_BR) diria "SUCESSO" em vez de "OK"
+          local out = U.capture((C.KNULLI and "LC_ALL=C " or "") .. "md5sum -c " .. U.shq(jd .. "/backup.md5") .. " 2>/dev/null | grep -vc ': OK$'") or ""
           if (tonumber(U.trim(out)) or 1) > 0 then okc = false end
         end
         for line in (U.read_file(jd .. "/plan.tsv") or ""):gmatch("[^\n]+") do

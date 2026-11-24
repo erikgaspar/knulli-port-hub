@@ -76,6 +76,7 @@ function M.start(op, args, on_done)
   local job = {
     op = op, lang = require("lib.i18n").lang, out_channel = OUT, in_channel = IN,
     app_dir = C.APP_DIR, ports_dir = C.PORTS_DIR, tmp_dir = C.TMP_DIR, fetch_sh = C.FETCH_SH,
+    knulli = C.KNULLI or nil,   -- Knulli: so aceita pacote da adaptacao (veja updater_thread)
     current_version = (M.disk_version()), current_label = select(2, M.disk_version()),
     tools = { zip = plain(tools.zip), ["7z"] = plain(tools["7z"]), rar = plain(tools.rar) },
   }
@@ -148,6 +149,7 @@ M.PROBLEM = {
   missing = L("arquivo do manifesto ausente"), size = L("tamanho diferente do manifesto"),
   too_old = L("versão instalada antiga demais para este pacote"), too_new = L("versão instalada nova demais para este pacote"),
   dest_link = L("destino é um link"), dest_dir = L("destino é uma pasta"), dest_outside = L("destino fora da pasta do hub"),
+  not_knulli = L("pacote do R36S (sem a adaptação para o Knulli): instalar apagaria a versão do Knulli"),
 }
 
 function M.problem_text(p)

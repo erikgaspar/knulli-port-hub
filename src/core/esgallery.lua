@@ -14,6 +14,7 @@
 local U = require("lib.util")
 local json = require("lib.json")
 local Fetcher = require("core.fetcher")
+local C = require("config")
 
 local G = {}
 G.SIZES = { "480x320", "640x480", "854x480", "960x544", "720x720" }
@@ -93,9 +94,72 @@ local function save()
   if G.data then pcall(love.filesystem.write, CACHE, json.encode(G.data)) end
 end
 
+-- ---------------------------------------------------------------------------
+-- Knulli: a galeria do ThemeMaster e as colecoes sao do ArkOS. Fonte = a lista
+-- que o proprio EmulationStation do Knulli usa para baixar temas (themes.json:
+-- { data = [ { theme, author, theme_url, last_update, size (MB), screenshot } ] }).
+
+--- lista do Knulli -> { name, owner, repo, url, updated, size_mb, preview }
+function G.parse_knulli(text, img_base)
+  local d = json.decode(text or "")
+  if type(d) ~= "table" or type(d.data) ~= "table" then return nil end
+  local out = {}
+  for _, t in ipairs(d.data) do
+    if type(t) == "table" and type(t.theme) == "string" and type(t.theme_url) == "string" then
+      local owner, repo = t.theme_url:match("^https://github%.com/([%w%._%-]+)/([%w%._%-]+)/?$")
+      if owner and repo then
+        repo = repo:gsub("%.git$", "")
+        local shot = type(t.screenshot) == "string" and t.screenshot or nil
+        if shot and not shot:match("^https?://") then
+          shot = (shot:find("%.%.") or shot:sub(1, 1) == "/") and nil or (img_base .. shot)
+        end
+        out[#out + 1] = { name = t.theme, owner = owner, repo = repo, url = "https://github.com/" .. owner .. "/" .. repo,
+          author = type(t.author) == "string" and t.author or owner,
+          updated = type(t.last_update) == "string" and t.last_update:match("^%d%d%d%d%-%d%d%-%d%d") or nil,
+          size_mb = tonumber(t.size), preview = shot }
+      end
+    end
+  end
+  return out
+end
+
+local function refresh_knulli(force, on_done)
+  local K = require("core.knulli_sys")
+  if not force and G.data and G.data.time and os.time() - G.data.time < MAX_AGE
+      and type(G.data.knulli) == "table" and #G.data.knulli > 0 then
+    if on_done then on_done("recent") end
+    return
+  end
+  if G.busy then return end
+  G.busy = true
+  local dir = love.filesystem.getSaveDirectory()
+  local i = 0
+  local function try()
+    i = i + 1
+    local url = K.THEMES_URLS[i]
+    if not url then
+      G.busy = false
+      if on_done then on_done("failed") end
+      return
+    end
+    Fetcher.get("catalog", url, dir .. "/es_knulli_themes.dl", function(ok, path)
+      local list = ok and G.parse_knulli(U.read_file(path), K.THEMES_IMG_BASE) or nil
+      if path then os.remove(path) end
+      if not (list and #list > 0) then return try() end
+      G.busy = false
+      G.data = G.data or { gallery = {}, collections = {} }
+      G.data.knulli, G.data.knulli_src, G.data.time = list, url, os.time()
+      save()
+      if on_done then on_done("ok") end
+    end, true)
+  end
+  try()
+end
+
 --- atualiza (galeria + colecoes). on_done(status): "ok" | "partial" | "failed" | "recent"
 function G.refresh(tm, force, on_done)
   G.load_cache()
+  if C.KNULLI then return refresh_knulli(force, on_done) end
   if not force and G.data and G.data.time and os.time() - G.data.time < MAX_AGE
       and type(G.data.gallery) == "table" and #G.data.gallery > 0 then
     if on_done then on_done("recent") end

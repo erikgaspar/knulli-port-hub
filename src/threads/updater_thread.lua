@@ -53,7 +53,8 @@ local function dest(rel) return PORTS .. "/" .. rel end
 
 -- ---------------------------------------------------------------------------
 -- Versao de um pacote completo sem manifesto: le config.lua de dentro do game.love
-local function game_love_version(tool, ziptool, arch, member)
+--- config.lua de dentro do game.love do pacote (texto ou nil)
+local function game_love_cfg(tool, ziptool, arch, member)
   if not ziptool then return nil end
   sh("mkdir -p " .. shq(W))
   local tmp = W .. "/probe_game.love"
@@ -65,6 +66,12 @@ local function game_love_version(tool, ziptool, arch, member)
   data = nil
   local cfg = Formats.cat(ziptool, tmp, "config.lua", 256 * 1024) or ""
   os.remove(tmp)
+  return cfg
+end
+
+local function game_love_version(tool, ziptool, arch, member)
+  local cfg = game_love_cfg(tool, ziptool, arch, member)
+  if not cfg then return nil end
   local num = cfg:match('C%.VERSION_NUM%s*=%s*"([^"]+)"')
   local label = cfg:match('C%.VERSION%s*=%s*L%("([^"]+)"%)') or cfg:match('C%.VERSION%s*=%s*"([^"]+)"')
   return num, label
@@ -191,10 +198,36 @@ local function plan_targets(r)
   os.remove(listf)
 end
 
+-- Knulli: um pacote do R36S PORT HUB original trocaria o app e o iniciador pelos
+-- do dArkOS (a adaptacao some). So passa pacote da adaptacao: manifesto com
+-- "firmware": "knulli" ou game.love / iniciador com o codigo do Knulli (PORTHUB_FW).
+-- Pacote sem game.love e sem iniciador (so arquivos de apoio) passa.
+local function knulli_package(r)
+  local m = r.manifest
+  if m and type(m.firmware) == "string" and m.firmware:lower() == "knulli" then return true end
+  local tool = job.tools[r.format]
+  if not tool or not r.base then return true end   -- sem como ler: as outras conferencias barram
+  local has = {}
+  for _, rel in ipairs(r.files or {}) do has[rel] = true end
+  if has[Rules.LAUNCHER] then
+    local s = Formats.cat(tool, job.archive, r.base .. Rules.LAUNCHER, 1024 * 1024) or ""
+    if not s:find("PORTHUB_FW", 1, true) then return false end
+  end
+  local gl = Rules.APP .. "/game.love"
+  if has[gl] then
+    local cfg = game_love_cfg(tool, job.tools.zip, job.archive, r.base .. gl)
+    if not cfg or not cfg:find("PORTHUB_FW", 1, true) then return false end
+  end
+  return true
+end
+
 local function compat(r)
   if r.manifest then
     local ok, why = Rules.compat(r.manifest, job.current_version)
     if not ok then r.problems[#r.problems + 1] = { code = why } end
+  end
+  if job.knulli and r.base and #(r.files or {}) > 0 and not knulli_package(r) then
+    r.problems[#r.problems + 1] = { code = "not_knulli" }
   end
   if r.version then r.cmp = Rules.compare(r.version, job.current_version) end
 end
