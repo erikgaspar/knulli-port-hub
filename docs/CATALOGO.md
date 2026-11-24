@@ -168,3 +168,15 @@ Itens que nunca são substituídos: `PortMaster`, `PortMaster.sh`, `gamelist.xml
 3. Coloque a URL do `catalog.json` em `catalog_url.txt` (ou em `config.lua`, antes de gerar o `game.love`).
 
 > Confira o link no navegador antes de publicar: o app precisa receber o arquivo, não uma página de aviso.
+
+## Knulli Port Hub: catálogo oficial do PortMaster
+
+Só no Knulli (`PORTHUB_FW=knulli`). Código em `src/core/pmcatalog.lua`.
+
+- **Fonte:** `https://github.com/PortsMaster/PortMaster-New/releases/latest/download/ports.json` (a mesma do harbourmaster). Baixado junto com os outros catálogos (na abertura só se o cache tiver mais de 6 h; sempre em "Atualizar catálogo"), numa segunda fila de downloads, e convertido fora da thread da interface. Fica em cache compacto (`pm_catalog_cache.json`) para uso sem internet.
+- **Entram só ports "Ready to Run"** (não pedem arquivos do jogo): `attr.rtr == true`, não experimentais (`attr.exp`), runtime disponível em aarch64 (ou `attr.arch` com aarch64; sem arch e sem runtime = universal, regra do harbourmaster), `attr.reqs` atendidos pelas capacidades do RG35XXH/Knulli (as que o harbourmaster do console informa) e `min_glibc` <= 2.40.
+- **Conversão:** id `pm-<zip sem .zip>` (ex.: `pm-lilt`), `pm_name` = nome do zip, nome = `attr.title`, descrição = `attr.desc`, autor = `attr.porter`, categoria pelo primeiro gênero da lista de prioridade (fps→tiro, racing→corrida, sports→esportes, rpg, platformer→plataforma, puzzle, strategy/simulation→estratégia, visual novel→aventura, casino/card→puzzle, rhythm→arcade, adventure→aventura, arcade, action→ação, other→outros), tamanho/md5/url de `source`, versão = `source.date_updated`, capa = `attr.image.covers[1]` ou `screenshot` em `raw.githubusercontent.com/PortsMaster/PortMaster-New/main/ports/<zip>/`. Origem: `source = "portmaster"` (selo PORTMASTER).
+- **Duplicados** (mesmo jogo no catálogo do autor, por pm_name/id/nome normalizados): fica um só. O do autor fica se tiver selo h700 "testado" (dele ou do catálogo extra); senão fica o do PortMaster, que guarda o id do autor em `alt_id` (registro de instalados e selo h700 continuam valendo).
+- **Selo h700 pelo catálogo extra:** use o id `pm-<zip>` ou o nome do zip (`"id": "lilt.zip"`) no `knulli-catalog.json`.
+- **Instalação:** pelo instalador normal (fila, md5, extração). Runtimes que faltam em `PortMaster/libs` são avisados (com o tamanho) e baixados antes do port, conferidos pelo md5 do índice oficial. Depois, o `port.json` ganha `status` (source PortMaster, md5, Installed) e `files`, e os .sh ganham a linha `# PORTMASTER: zip, script`, como o harbourmaster faz.
+- **Atualização:** "atualização disponível" quando o md5 do zip no catálogo for diferente do instalado (`port.json` ou registro do hub).

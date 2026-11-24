@@ -17,6 +17,7 @@ local S = {
   dirs = {},        -- chave normalizada -> nome da pasta
   meta = {},        -- chave normalizada (zip/titulo/nome) -> { itens }
   versions = {},    -- chave normalizada -> versao informada nos metadados
+  pmmd5 = {},       -- chave do zip do PortMaster -> md5 instalado (port.json "status")
   ports = {},       -- lista de ports encontrados no cartao (um por script .sh)
   by_script = {},   -- nome do .sh -> port encontrado
   count = 0,
@@ -70,6 +71,10 @@ local function parse_port_json(dir, text)
   local cover = text:match('"covers"%s*:%s*%[%s*"([^"]+)"')
   if zip then add_meta(zip, items) end
   if title then add_meta(title, items) end
+  -- md5 do zip instalado (o PortMaster grava em "status"; o hub tambem)
+  local status = text:match('"status"%s*:%s*(%b{})')
+  local md5 = status and status:match('"md5"%s*:%s*"(%x+)"')
+  if zip and md5 then S.pmmd5[S.key(zip)] = md5:lower() end
   for _, it in ipairs(items) do
     if it:lower():match("%.sh$") then
       local si = script_info(it)
@@ -161,6 +166,7 @@ function S.refresh(force)
   local out = U.capture(cmd) or ""
 
   S.entries, S.scripts, S.dirs, S.meta, S.versions, S.count, S.ports = {}, {}, {}, {}, {}, 0, {}
+  S.pmmd5 = {}
   S.by_script = {}
   info = {}
   local mode, arg = nil, nil
@@ -246,6 +252,12 @@ function S.refresh(force)
 end
 
 function S.exists(name) return S.entries[name] ~= nil end
+
+--- md5 do zip do PortMaster instalado (port.json), se conhecido
+function S.pm_md5(zip)
+  if not zip or zip == "" then return nil end
+  return S.pmmd5[S.key(zip)]
+end
 
 --- Procura um port do catalogo no console.
 --- Devolve (lista de itens encontrados, versao instalada se conhecida) ou nil

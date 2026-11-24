@@ -390,7 +390,11 @@ function M.evaluate(p)
         elseif best.c >= 0 then add("rt", "ok", want, L("instalado: ") .. best.n)
         else add("rt", "fail", want, L("versão instalada incompatível: ") .. best.n) end
       else
+        local pmrt = C.KNULLI and p.source == "portmaster" and require("core.pmcatalog").runtimes[name]
         if e.runtimes[name] then add("rt", "ok", name, L("instalado (") .. e.runtimes[name] .. ")")
+        elseif pmrt and e.pm then
+          -- Knulli: o hub baixa o runtime oficial junto com o port do PortMaster
+          add("rt", "ok", name, L("não instalado; será baixado com o port (") .. U.format_bytes(pmrt.size or 0) .. ")")
         elseif not e.pm then add("rt", "missing", name, L("PortMaster não encontrado no console"))
         else
           local other = {}
@@ -423,7 +427,14 @@ function M.evaluate(p)
   -- requisitos do PortMaster ("reqs"): o hub registra, mas so verifica os que conhece
   if req.reqs then
     for _, r in ipairs(req.reqs) do
-      add("hw", "unknown", r, L("requisito informado pelo PortMaster; o hub não sabe verificar"))
+      if C.KNULLI and p.source == "portmaster" then
+        -- Knulli: mesma regra do harbourmaster, com as capacidades do RG35XXH
+        local okr = require("core.pmcatalog").match_reqs({ r })
+        add("hw", okr and "ok" or "fail", r, okr and L("atendido por este console (regra do PortMaster)")
+          or L("não atendido por este console (regra do PortMaster)"))
+      else
+        add("hw", "unknown", r, L("requisito informado pelo PortMaster; o hub não sabe verificar"))
+      end
     end
   end
 

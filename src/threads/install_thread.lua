@@ -241,6 +241,128 @@ extract_7z = function(fmt)
 end
 
 -- ---------------------------------------------------------------------------
+-- Knulli: runtimes do PortMaster exigidos pelo port (mono, frt, godot...).
+-- Baixados ANTES do port, um por vez, conferidos (tamanho + md5 do indice
+-- oficial) e so entao movidos para PortMaster/libs. Nada e trocado: so entram
+-- runtimes que faltam. Devolve true ou (nil, codigo, detalhe) / "cancel".
+local function md5sum(p)
+  return lower(capture("md5sum " .. shq(p) .. " 2>/dev/null"):match("^(%x+)") or "")
+end
+local function fetch_runtimes()
+  local list = job.runtimes
+  if type(list) ~= "table" or #list == 0 then return true end
+  local libs = job.libs_dir
+  if not libs or libs == "" then return nil, "runtime_failed", L("PortMaster não encontrado") end
+  if not sh("mkdir -p " .. shq(libs)) or not sh("test -w " .. shq(libs)) then return nil, "no_write", libs end
+  local need = 0
+  for _, r in ipairs(list) do need = need + (tonumber(r.size) or 0) end
+  local avail = free_bytes(libs)
+  if avail and avail < need + job.margin then return nil, "no_space", string.format("%d|%d", need + job.margin, avail) end
+  for _, r in ipairs(list) do
+    local name = tostring(r.name or "")
+    if not name:match("^[%w%._%-]+%.squashfs$") or not r.url or not r.md5 then return nil, "runtime_failed", name end
+    if sh("test -f " .. shq(libs .. "/" .. name)) then
+      log("runtime ja presente:", name)
+    else
+      log("baixando runtime:", name, r.url)
+      local part = WORK .. "/" .. name .. ".part"
+      local expected = tonumber(r.size)
+      send({ t = "phase", phase = "download", total = expected, label = name })
+      os.remove(part); os.remove(RCF); os.remove(PIDF)
+      sh("sh " .. shq(job.fetch_sh) .. " get " .. shq(r.url) .. " " .. shq(part) .. " "
+        .. shq(PIDF) .. " " .. shq(RCF) .. " >" .. shq(WORK .. "/fetch_rt.log") .. " 2>&1 &")
+      local rc, last = nil, -1
+      while true do
+        love.timer.sleep(0.25)
+        local s = read_all(RCF)
+        if s and s:match("%d+") then rc = tonumber(s:match("%d+")); break end
+        if check_cancel() then
+          local pid = (read_all(PIDF) or ""):match("%d+")
+          if pid then sh("kill " .. pid .. " 2>/dev/null") end
+          for _ = 1, 40 do love.timer.sleep(0.1); if read_all(RCF) then break end end
+          return "cancel"
+        end
+        local done = fsize(part) or 0
+        if done ~= last then send({ t = "progress", phase = "download", done = done, total = expected }); last = done end
+      end
+      if rc ~= 0 then
+        if rc == 23 then return nil, "no_space", "" end
+        return nil, "runtime_failed", name .. " (rc=" .. tostring(rc) .. ")"
+      end
+      send({ t = "phase", phase = "verify", label = name })
+      local got = fsize(part) or 0
+      if expected and got ~= expected then return nil, "size_mismatch", string.format("%d|%d", got, expected) end
+      if md5sum(part) ~= lower(r.md5) then return nil, "checksum", name end
+      local dst = libs .. "/" .. name
+      if not (sh("mv -f " .. shq(part) .. " " .. shq(dst .. ".porthub")) and sh("mv -f " .. shq(dst .. ".porthub") .. " " .. shq(dst))) then
+        os.remove(dst .. ".porthub")
+        return nil, "no_write", libs
+      end
+      sh("chmod 644 " .. shq(dst) .. " 2>/dev/null")
+      log("runtime instalado:", dst)
+    end
+    if check_cancel() then return "cancel" end
+  end
+  return true
+end
+
+-- Knulli: port do PortMaster instalado -> port.json com "status" (o mesmo que o
+-- harbourmaster grava: source, md5 do zip, Installed) e "files", e a assinatura
+-- "# PORTMASTER: zip, script" nos .sh. Assim o PortMaster reconhece o port como
+-- instalado por ele (atualizar/remover pelo PortMaster continua funcionando).
+local function pm_finish(installed)
+  local pm = job.pm
+  if type(pm) ~= "table" or not pm.name then return end
+  local okj, json = pcall(require, "lib.json")
+  if not okj then return end
+  local dirs, files = {}, {}
+  for _, n in ipairs(installed) do
+    if sh("test -d " .. shq(job.ports_dir .. "/" .. n)) then dirs[#dirs + 1] = n end
+  end
+  for _, d in ipairs(dirs) do
+    local pj = job.ports_dir .. "/" .. d .. "/port.json"
+    local text = read_all(pj)
+    local okd, info = pcall(json.decode, text or "")
+    if okd and type(info) == "table" and (info.name == nil or lower(info.name) == lower(pm.name)) then
+      files = { ["port.json"] = d .. "/port.json" }
+      for _, n in ipairs(installed) do files[n] = n end
+      local status = { source = "PortMaster", md5 = pm.md5, status = "Installed" }
+      local out
+      if info.status == nil and info.files == nil and info.name ~= nil then
+        -- o normal (port.json do zip): so acrescenta as duas chaves no fim,
+        -- sem regravar o resto (null e {} vazios continuam como estao)
+        local body = text:match("^(.*)}%s*$")
+        if body then
+          out = body:gsub("%s+$", "") .. ",\n    \"status\": " .. json.encode(status) .. ",\n    \"files\": "
+            .. json.encode(files) .. "\n}\n"
+        end
+      end
+      if not out then
+        info.name, info.status, info.files, info.source = pm.name, status, files, nil
+        out = json.encode(info, true)
+      end
+      local okv, chk = pcall(json.decode, out)
+      okv = okv and type(chk) == "table"
+      local fh = okv and io.open(pj, "wb")
+      if fh then fh:write(out); fh:close(); log("port.json atualizado:", pj) end
+      break
+    end
+  end
+  for _, n in ipairs(installed) do
+    if lower(n):match("%.sh$") then
+      local p = job.ports_dir .. "/" .. n
+      local text = read_all(p)
+      if text and not text:find("PORTMASTER:", 1, true) then
+        local first, rest = text:match("^(#![^\n]*\n)(.*)$")
+        local sig = "# PORTMASTER: " .. pm.name .. ", " .. n .. "\n"
+        local fh = io.open(p, "wb")
+        if fh then fh:write(first and (first .. sig .. rest) or (sig .. text)); fh:close() end
+      end
+    end
+  end
+end
+
+-- ---------------------------------------------------------------------------
 local function run()
   log("iniciando:", job.name, "->", job.ports_dir)
 
@@ -255,6 +377,13 @@ local function run()
   cleanup()
   if not sh("mkdir -p " .. shq(STAGE)) then
     return fail("no_write", job.tmp_dir)
+  end
+
+  -- Knulli: runtimes do PortMaster que faltam (antes do port)
+  if not job.local_file and job.runtimes then
+    local okr, code, detail = fetch_runtimes()
+    if okr == "cancel" then return cancel_done() end
+    if not okr then return fail(code, detail) end
   end
 
   local expected, got
@@ -663,6 +792,11 @@ local function run()
           .. "-exec sh -c 'for f; do case \"$f\" in *.sh) chmod +x \"$f\";; *) [ \"$(head -c 4 \"$f\" 2>/dev/null)\" = \"$(printf \"\\177ELF\")\" ] && chmod +x \"$f\";; esac; done' sh {} + 2>/dev/null")
       end
     end
+  end
+  -- Knulli: port do PortMaster -> port.json/assinatura como o harbourmaster
+  if job.pm then
+    local okp, perr = pcall(pm_finish, installed)
+    if not okp then log("port.json do PortMaster nao atualizado:", tostring(perr)) end
   end
   sh("sync")
 

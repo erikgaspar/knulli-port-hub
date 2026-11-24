@@ -479,6 +479,13 @@ function PS.cover_badges(p, x, y, w, h)
     local f = PS.font("x", 9, true)
     local lw = f:getWidth(tr(label)) + 12
     if lw <= w - 10 then PS.pill(label, x + 5, y + h - 5 - 15, { font = f, bg = bg, fg = c.bg, px = 6, h = 15 }) end
+  elseif p.source == "portmaster" then
+    -- Knulli: origem PortMaster (discreto; o selo h700, quando existe, tem prioridade)
+    local f = PS.font("x", 9, true)
+    local label = L("PORTMASTER")
+    if f:getWidth(tr(label)) + 12 <= w - 10 then
+      PS.pill(label, x + 5, y + h - 5 - 15, { font = f, bg = { c.bg[1], c.bg[2], c.bg[3], 0.72 }, fg = c.dim2, px = 6, h = 15 })
+    end
   end
 end
 

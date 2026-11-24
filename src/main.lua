@@ -155,6 +155,17 @@ function App.refresh_catalog(user_initiated, on_done)
       if Catalog.on_extra(ok2, path2 or out2) then App.on_catalog_changed() end
     end)
   end
+  -- Knulli Port Hub: catalogo oficial do PortMaster (so ports Ready to Run).
+  -- O arquivo tem ~2,6 MB: na abertura so baixa de novo se o cache tiver mais de 6 h.
+  local PMC = C.KNULLI and require("core.pmcatalog")
+  if PMC and (user_initiated or PMC.stale()) then
+    local out3 = love.filesystem.getSaveDirectory() .. "/catalog_pm_download.json"
+    Fetcher.get_bg("catalog_pm", PMC.URL, out3, function(ok3, path3)
+      local okc, changed = pcall(Catalog.on_pm, ok3, path3 or out3)
+      if not okc then U.log("catalogo PortMaster falhou:", tostring(changed)) end
+      if okc and changed then Manifest.invalidate(); App.on_catalog_changed() end
+    end)
+  end
   local url = Catalog.get_remote_url()
   Catalog.remote_url = url
   if not url then
@@ -262,6 +273,38 @@ end
 --- Pedido de download/instalacao: passa pela Central de Downloads (fila).
 --- Se nada estiver em andamento, comeca na hora (com a janela de progresso).
 function App.install(p, opts)
+  -- Knulli: port do PortMaster que precisa de runtime (mono, frt, godot...) que
+  -- ainda nao esta em PortMaster/libs: avisa o tamanho e baixa junto (antes do port)
+  if C.KNULLI and p and p.source == "portmaster" and not (opts and (opts.local_file or opts.rt_checked)) then
+    local PMC = require("core.pmcatalog")
+    local libs = PMC.libs_dir()
+    local miss, total = PMC.missing_runtimes(p, libs)
+    if #miss > 0 then
+      local lines, unknown = {}, nil
+      for _, r in ipairs(miss) do
+        if not r.url then unknown = r.name end
+        lines[#lines + 1] = "• " .. r.title .. (r.size and ("  (" .. U.format_bytes(r.size) .. ")") or "")
+      end
+      if not libs or unknown then
+        App.show_dialog({ title = L("Runtime do PortMaster"), kind = "error",
+          body = not libs and L("Este port precisa de um runtime do PortMaster, mas o PortMaster não foi encontrado no console.")
+            or (L("Este port precisa de um runtime que não está no índice do PortMaster: ") .. unknown) })
+        return
+      end
+      local o = {}
+      for k, v in pairs(opts or {}) do o[k] = v end
+      o.rt_checked, o.runtimes, o.libs_dir = true, miss, libs
+      App.show_dialog({ title = L("Runtime do PortMaster"), kind = "warn",
+        body = L("Este port precisa de um runtime do PortMaster que ainda não está no console:") .. "\n"
+          .. table.concat(lines, "\n") .. "\n\n"
+          .. string.format(L("Ele será baixado junto com o jogo (mais %s) e fica em PortMaster/libs para outros ports."), U.format_bytes(total)),
+        buttons = {
+          { label = L("BAIXAR"), fn = function() App.install(p, o) end },
+          { label = L("CANCELAR") },
+        }, sel = 1 })
+      return
+    end
+  end
   local ok, msg = Downloads.enqueue(p, opts)
   if not ok then App.toast(msg, "warn"); return end
   local idle = not Installer.busy() and can_start_download()

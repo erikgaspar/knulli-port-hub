@@ -101,6 +101,7 @@ local function info_rows(self)
   local v = (st_ ~= "none" and Manifest.installed_version(p)) or p.version
   if (v or "") ~= "" then rows[#rows + 1] = { L("Versão"), v } end
   rows[#rows + 1] = { L("Categoria"), p.category or "" }
+  if p.source == "portmaster" and (p.author or "") ~= "" then rows[#rows + 1] = { L("Port por"), p.author } end
   if (p.platform or "") ~= "" then rows[#rows + 1] = { L("Plataforma"), p.platform } end
   return rows
 end
@@ -128,6 +129,8 @@ local function badges(self)
     end
   end
   if p.requires_files then out[#out + 1] = { L("REQUER ARQUIVOS DO JOGO"), PS.WARNBG, c.warn, "b" } end
+  -- Knulli: port do catalogo oficial do PortMaster (selo discreto, como FAVORITO)
+  if p.source == "portmaster" then out[#out + 1] = { L("PORTMASTER"), c.surf2, c.dim2, "m" } end
   if Favorites.is(p) then out[#out + 1] = { L("FAVORITO"), c.surf2, c.dim2, "m" } end
   return out
 end

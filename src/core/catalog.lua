@@ -95,6 +95,13 @@ local function normalize_port(raw, idx, cat_names)
   p.compat = type(raw.compat) == "table" and raw.compat or nil
   p.attr = type(raw.attr) == "table" and raw.attr or nil
   p.pm_name = str(raw.pm_name or raw.portmaster_name)
+  -- Knulli: port do catalogo oficial do PortMaster (core/pmcatalog.lua)
+  if raw.pm == true then
+    p.source = "portmaster"
+    p.pm_items = type(raw.pm_items) == "table" and raw.pm_items or nil
+  end
+  -- id do mesmo jogo no catalogo do autor (duplicado substituido pelo do PortMaster)
+  p.alt_id = raw.alt_id and str(raw.alt_id) or nil
   -- Novidades (opcionais): datas no formato AAAA-MM-DD
   p.added = str(raw.added or raw.added_at or raw.adicionado_em)
   p.updated_at = str(raw.updated or raw.updated_at or raw.atualizado_em)
@@ -161,6 +168,7 @@ function Catalog.parse(text)
     list = data.ports or data.games or data.jogos
   end
   if type(list) ~= "table" then return nil, L("o catálogo não tem a lista \"ports\"") end
+  if C.KNULLI then list = require("core.pmcatalog").merge(list, Catalog.extra) end
   if Catalog._merge_extra then list = Catalog._merge_extra(list) end
 
   local cat_names, cat_order = {}, {}
@@ -268,6 +276,9 @@ local function merge_extra(list)
       local id = str(raw.id or raw.identificador)
       if id == "" then id = U.slug(str(raw.name or raw.nome or raw.title)) end
       idx[id] = i
+      -- ports do PortMaster: tambem pelo id do autor que substituiram e pelo nome do zip
+      if raw.alt_id and not idx[str(raw.alt_id)] then idx[str(raw.alt_id)] = i end
+      if raw.pm and raw.pm_name and not idx[str(raw.pm_name)] then idx[str(raw.pm_name)] = i end
     end
   end
   for _, e in ipairs(ex.ports) do
@@ -305,16 +316,29 @@ function Catalog.load_extra_local()
   end
 end
 
+--- refaz o catalogo atual (depois de chegar o extra ou o do PortMaster)
+local function reapply()
+  local base = love.filesystem.read(CACHE_FILE) or U.read_file(C.APP_DIR .. "/catalog.json")
+    or love.filesystem.read("catalog/catalog.json")
+  if base then
+    local res = Catalog.parse(base)
+    if res then apply(res, Catalog.source ~= "none" and Catalog.source or "cache") end
+  end
+end
+
 --- Resultado do download do extra: guarda e reaplica o catalogo atual
 function Catalog.on_extra(ok, path)
   if not ok then return false end
   local text = U.read_file(path); os.remove(path)
   if not Catalog.set_extra(text, true) then return false end
-  local base = love.filesystem.read(CACHE_FILE) or U.read_file(C.APP_DIR .. "/catalog.json")
-  if base then
-    local res = Catalog.parse(base)
-    if res then apply(res, Catalog.source ~= "none" and Catalog.source or "cache") end
-  end
+  reapply()
+  return true
+end
+
+--- Knulli: resultado do download do catalogo do PortMaster (ports.json oficial)
+function Catalog.on_pm(ok, path)
+  if not require("core.pmcatalog").on_download(ok, path) then return false end
+  reapply()
   return true
 end
 
@@ -332,6 +356,7 @@ end
 --- Carrega a melhor fonte local disponivel (sem rede)
 function Catalog.load_local()
   Catalog.load_extra_local()
+  if C.KNULLI then pcall(require("core.pmcatalog").load_local) end
   Catalog.remote_url = Catalog.get_remote_url()
   local tries = {}
   if Catalog.remote_url then

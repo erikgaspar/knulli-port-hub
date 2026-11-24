@@ -35,7 +35,46 @@ function F.get(kind, url, out, cb, priority)
   return id
 end
 
+-- Segunda fila, so para downloads pequenos porem demorados (ex.: catalogo do
+-- PortMaster, ~2,6 MB): assim capas e o catalogo do hub nao esperam por eles.
+local BG = { thread = nil }
+function F.get_bg(kind, url, out, cb)
+  if not BG.thread then
+    BG.req = love.thread.getChannel("hub_fetchbg_req")
+    BG.res = love.thread.getChannel("hub_fetchbg_res")
+    BG.req:clear(); BG.res:clear()
+    BG.thread = love.thread.newThread("threads/fetch_thread.lua")
+    BG.thread:start(C.FETCH_SH, "hub_fetchbg_req", "hub_fetchbg_res")
+  end
+  F.seq = F.seq + 1
+  local id = kind .. ":" .. F.seq
+  F.handlers[id] = cb
+  BG.req:push({ id = id, kind = kind, url = url, out = out })
+  return id
+end
+
+local function update_bg()
+  if not BG.thread then return end
+  local err = BG.thread:getError()
+  if err then
+    U.log("erro na thread de downloads (2a fila):", err)
+    BG.thread = nil
+    return
+  end
+  local m = BG.res:pop()
+  while m do
+    local cb = F.handlers[m.id]
+    F.handlers[m.id] = nil
+    if cb then
+      local ok, e = pcall(cb, m.ok, m.out, m.reason)
+      if not ok then U.log("erro no retorno do download:", e) end
+    end
+    m = BG.res:pop()
+  end
+end
+
 function F.update()
+  update_bg()
   if not F.thread then return end
   local err = F.thread:getError()
   if err then
@@ -96,6 +135,7 @@ end
 
 function F.stop()
   if F.req then F.req:clear(); F.req:push({ t = "quit" }) end
+  if BG.req then BG.req:clear(); BG.req:push({ t = "quit" }) end
 end
 
 return F

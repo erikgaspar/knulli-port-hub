@@ -5,9 +5,10 @@
 -- =============================================================================
 require("love.timer")
 
-local fetch_sh = ...
-local REQ = love.thread.getChannel("hub_fetch_req")
-local RES = love.thread.getChannel("hub_fetch_res")
+local fetch_sh, req_name, res_name = ...
+-- canais opcionais: a segunda fila (downloads grandes, ex.: catalogo do PortMaster)
+local REQ = love.thread.getChannel(req_name or "hub_fetch_req")
+local RES = love.thread.getChannel(res_name or "hub_fetch_res")
 
 local function shq(s) return "'" .. tostring(s or ""):gsub("'", "'\\''") .. "'" end
 
@@ -35,7 +36,8 @@ while true do
     local rcf = req.out .. ".rc"
     local pidf = req.out .. ".pid"
     os.remove(tmp); os.remove(rcf)
-    local maxt = req.kind == "catalog" and 25 or 30
+    -- catalogo do PortMaster (Knulli): ~2,6 MB, pode demorar no Wi-Fi do console
+    local maxt = req.kind == "catalog" and 25 or (req.kind == "catalog_pm" and 300 or 30)
     local rc
     if req.part then
       -- so o comeco do arquivo (manifesto de um pacote .zip)
@@ -57,6 +59,27 @@ while true do
       local is_png = h:sub(1, 8) == "\137PNG\r\n\26\n"
       local is_jpg = h:sub(1, 3) == "\255\216\255"
       if not (is_png or is_jpg) then okres = false; reason = "nao e imagem" end
+    end
+    if okres and req.kind == "catalog_pm" then
+      -- Knulli: o ports.json do PortMaster (2,6 MB) e convertido aqui, fora da
+      -- thread da interface; a resposta e a versao compacta (core/pmcatalog.lua)
+      local okc, cerr = pcall(function()
+        require("love.filesystem")
+        local PMC = require("core.pmcatalog")
+        local fh = io.open(tmp, "rb")
+        local text = fh and fh:read("*a") or ""
+        if fh then fh:close() end
+        local data, e = PMC.convert(text)
+        text = nil
+        if not data then error(e or "ports.json invalido") end
+        local out = require("lib.json").encode(data)
+        data = nil
+        fh = io.open(tmp, "wb")
+        if not fh then error("falha ao salvar") end
+        fh:write(out); fh:close()
+        collectgarbage()
+      end)
+      if not okc then okres = false; reason = "conversao: " .. tostring(cerr); os.remove(tmp) end
     end
     if okres then
       os.remove(req.out)

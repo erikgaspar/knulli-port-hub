@@ -31,6 +31,9 @@ function M.record(p, entries)
     version = p.version,
     entries = entries,
     date = os.date("%Y-%m-%d %H:%M"),
+    -- Knulli: port do PortMaster -> md5 do zip instalado (atualizacao = md5 mudou)
+    md5 = (p.source == "portmaster" and p.md5 ~= "") and p.md5 or nil,
+    pm_name = p.source == "portmaster" and p.pm_name or nil,
   }
   M.save()
   M.cache[p.id] = nil
@@ -47,7 +50,15 @@ function M.status(p)
   local c = M.cache[p.id]
   if c then return c.st end
   local st, found, by = "none", nil, nil
+  -- port do PortMaster que substituiu um do autor: vale o registro antigo tambem
   local rec = M.data[p.id]
+  if not rec and p.alt_id and M.data[p.alt_id] then
+    -- passa o registro para o id novo (desinstalar/atualizar usam p.id)
+    rec = M.data[p.alt_id]
+    M.data[p.id], M.data[p.alt_id] = rec, nil
+    M.save()
+  end
+  local pm = p.source == "portmaster" and (p.md5 or "") ~= ""
   if rec and type(rec.entries) == "table" then
     local f = {}
     for _, e in ipairs(rec.entries) do
@@ -55,7 +66,11 @@ function M.status(p)
     end
     if #f > 0 then
       st, found, by = "installed", f, "hub"
-      if p.version ~= "" and rec.version and rec.version ~= "" and rec.version ~= p.version then st = "update" end
+      if pm then
+        -- PortMaster: compara o md5 do zip (o do port.json; sem ele, o do registro)
+        local im = Scan.pm_md5(p.pm_name) or rec.md5
+        if im and im ~= p.md5 then st = "update" end
+      elseif p.version ~= "" and rec.version and rec.version ~= "" and rec.version ~= p.version then st = "update" end
     end
   end
   if st == "none" then
@@ -64,7 +79,11 @@ function M.status(p)
     if found then
       st, by = "installed", "console"
       -- so marca atualizacao quando a versao instalada e conhecida
-      if ver and ver ~= "" and p.version ~= "" and ver ~= p.version then st = "update" end
+      if pm then
+        -- instalado pelo proprio PortMaster: md5 gravado no port.json ("status")
+        local im = Scan.pm_md5(p.pm_name)
+        if im and im ~= p.md5 then st = "update" end
+      elseif ver and ver ~= "" and p.version ~= "" and ver ~= p.version then st = "update" end
       M.console_versions = M.console_versions or {}
       M.console_versions[p.id] = ver
     end

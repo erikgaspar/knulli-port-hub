@@ -29,6 +29,7 @@ local ERRORS = {
   no_script = L("Pacote inválido: nenhum script .sh na raiz do port."),
   install_failed = L("Falha ao copiar para a pasta de ports: %s"),
   no_url = L("Este port ainda não tem link de download cadastrado."),
+  runtime_failed = L("Não foi possível baixar o runtime do PortMaster que este port precisa: %s"),
   busy = L("Já existe uma instalação em andamento."),
   internal = L("Erro interno durante a instalação."),
 }
@@ -93,6 +94,10 @@ function I.start(p, opts)
     bundled_7z = C.APP_DIR .. "/bin/7zzs",
     sevenzip = os.getenv("PORTHUB_7Z") or "",
     preapproved = opts.preapproved and true or false,
+    -- Knulli: port do catalogo do PortMaster (port.json + runtimes que faltam)
+    pm = (p.source == "portmaster" and not opts.local_file) and { name = p.pm_name, md5 = p.md5 } or nil,
+    runtimes = (p.source == "portmaster" and not opts.local_file) and opts.runtimes or nil,
+    libs_dir = opts.libs_dir,
     -- senhas para arquivos protegidos (grupos de ports + senhas.txt)
     -- senha digitada no teclado do hub (quando nenhuma salva funcionou): so ela
     passwords = opts.password and { opts.password } or require("core.archives").passwords(),
@@ -133,6 +138,7 @@ function I.update()
   while m do
     if m.t == "phase" then
       j.phase = m.phase
+      j.label = m.label   -- ex.: nome do runtime do PortMaster sendo baixado
       j.done = 0
       if m.total then j.total = m.total end
       if m.phase == "download" then j.samples = {}; j.speed = 0; j.eta = nil end
@@ -156,6 +162,8 @@ function I.update()
         local okx, err = pcall(I.local_port_extras, j, m.entries or {}, m.source, m.porthub)
         if not okx then U.log("port local: extras falharam:", tostring(err)) end
       end
+      -- runtime novo do PortMaster: o Verificador de compatibilidade refaz a leitura
+      if j.opts and j.opts.runtimes then pcall(function() require("core.compat").invalidate() end) end
       Manifest.rescan(true)
       j.finished, j.result, j.entries, j.deleted = true, "done", m.entries, m.deleted
     elseif m.t == "error" then
