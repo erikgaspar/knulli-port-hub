@@ -19,8 +19,8 @@ C.OS_VERSION = os.getenv("R36HUBOS_VERSION") or ""
 -- recarrega a lista de jogos pela API do EmulationStation e usa /userdata/bios.
 C.KNULLI = os.getenv("PORTHUB_FW") == "knulli"
 -- versao propria do Knulli Port Hub (atualizacoes pelo repositorio erikgaspar/knulli-port-hub)
-C.KNULLI_VERSION_NUM = "0.5.5"
-C.KNULLI_VERSION = "0.5.5 BETA · Knulli Premium"
+C.KNULLI_VERSION_NUM = "0.5.6"
+C.KNULLI_VERSION = "0.5.6 BETA · Knulli Premium"
 if C.KNULLI then C.VERSION_NUM = C.KNULLI_VERSION_NUM; C.VERSION = L(C.KNULLI_VERSION) end
 
 -- Atualizacao do sistema (Configuracoes > Atualizacao do sistema).
