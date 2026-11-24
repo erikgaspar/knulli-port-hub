@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Central de ports, apps, ferramentas e temas para consoles com Knulli</b><br>
-  Adaptação do <a href="https://github.com/liralflsti-wq/r36s-port-hub">R36S PORT HUB</a>, de <b>Lag do Lira</b>, feita com autorização do autor.
+  Feito com base no <a href="https://github.com/liralflsti-wq/r36s-port-hub">R36S PORT HUB</a>, de <b>Lag do Lira</b>.
 </p>
 
 <p align="center">
@@ -128,7 +128,7 @@ O Tubo tem o próprio fluxo (`.github/workflows/tubo.yml`): ao subir `VERSION` e
 
 ## Créditos e licença
 
-- **R36S PORT HUB:** © 2026 **Lag do Lira** ([YouTube](https://www.youtube.com/@LagdoLira)). Licença própria (veja [LICENSE](LICENSE)); esta adaptação foi autorizada pelo autor. Documentação original: [README-R36S-PORT-HUB.md](README-R36S-PORT-HUB.md).
+- **R36S PORT HUB:** © 2026 **Lag do Lira** ([YouTube](https://www.youtube.com/@LagdoLira)). Este projeto foi feito com base no [R36S PORT HUB](https://github.com/liralflsti-wq/r36s-port-hub) (repositório original). Licença própria (veja [LICENSE](LICENSE)). Documentação original: [README-R36S-PORT-HUB.md](README-R36S-PORT-HUB.md).
 - **Knulli** e **Knulli App Store** (jellydn/knulli-app-store) e seus autores; **PortMaster** e os porters de cada port.
 - **Músicas:** [OverClocked ReMix](https://ocremix.org) e os artistas de cada arranjo (lista completa no app e em `knulli-music.json`). As composições originais pertencem aos seus donos. Nenhum arquivo de áudio é hospedado aqui.
 - **Traduções PT-BR:** PO.B.R.E, Romhacking.net e os grupos e tradutores de cada patch.
