@@ -18,16 +18,18 @@ local S = {}
 local INFO = {
   games = { color = T.c.accent, desc = L("Jogos portados para o R36S. Detalhes, download e instalação.") },
   bios = { color = T.c.yellow, desc = L("Downloads, verificação e instalação de BIOS para emuladores.") },
+  kstore = { color = T.c.accent2, desc = L("Apps da Knulli App Store (comunidade): instalar, atualizar e remover.") },
   tools = { color = T.c.green, desc = L("Ports utilitários, manutenção, diagnóstico, testes de controles e ferramentas do sistema.") },
 }
 
 -- cartoes da Central (BIOS nao e uma secao do catalogo: tem tela propria)
 local function cards()
   local out = {}
-  for _, sec in ipairs(Cats.SECTIONS) do
+  for _, sec in ipairs(Cats.SECTIONS) do -- (Knulli: + Apps do Knulli no fim)
     out[#out + 1] = { id = sec.id, name = sec.name }
     if sec.id == "games" then out[#out + 1] = { id = "bios", name = L("BIOS do Sistema") } end
   end
+  if require("config").KNULLI then out[#out + 1] = { id = "kstore", name = L("Apps do Knulli"), icon = "store" } end
   return out
 end
 
@@ -96,7 +98,7 @@ function S:draw()
     local pal, cx, cy, cw, chh = G.card(x, y, w, h, on, G.focus_k("sec" .. i, on), 12)
     local c = G.ink(INFO[card.id].color, pal)
     G.rect(cx, cy, cw, 6, c, 3, on and 1 or 0.5)
-    Icons.draw(card.id, cx + cw / 2 - 28, cy + 16, on and pal.icon or c, 56 / 24)
+    Icons.draw(card.icon or card.id, cx + cw / 2 - 28, cy + 16, on and pal.icon or c, 56 / 24)
     -- nome (ate 2 linhas) e descricao: diminuem ou sao encurtados para caber no cartao
     local nf, nl, nlh = G.fit_lines(T.f.h3, card.name, cw - 20, 2 * T.base_font(T.f.h3):getHeight() + 6)
     local ny = cy + 80
@@ -105,7 +107,13 @@ function S:draw()
     local df, dl, dlh = G.fit_lines(T.f.small, INFO[card.id].desc, cw - 20, cy + chh - 47 - dy, true)
     for k, l in ipairs(dl) do G.text(df, l, cx + 10, dy + (k - 1) * dlh, pal.dim, "center", cw - 20) end
     local label, lc
-    if card.id == "bios" then
+    if card.id == "kstore" then
+      local apps = require("core.kstore").available() and require("core.kstore").list() or nil
+      local n = 0
+      for _, a in ipairs(apps or {}) do if a.status ~= "none" then n = n + 1 end end
+      label = apps and string.format(L("%d DE %d INSTALADOS"), n, #apps) or L("LOJA NÃO INSTALADA")
+      lc = apps and c or pal.faint
+    elseif card.id == "bios" then
       label, lc = self:bios_label()
       lc = G.ink(lc or c, pal)
     else
@@ -148,7 +156,8 @@ function S:action(act)
   elseif act == "a" then
     if self.row == 1 then
       local card = cards()[self.sel]
-      if card.id == "bios" then App.push("bios")
+      if card.id == "kstore" then require("ui.kstore_ui").open()
+      elseif card.id == "bios" then App.push("bios")
       else App.push("store", { section = card.id, filter = "all" }) end
     else
       local id = shortcuts()[self.sc].id

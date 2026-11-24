@@ -717,6 +717,8 @@ end
 
 --- script .sh do port instalado (na raiz da pasta de ports), ou nil
 function App.port_script(p)
+  -- atalho direto para um script conhecido (ex.: Knulli App Store)
+  if p and p.script_override then return U.exists(C.PORTS_DIR .. "/" .. p.script_override) and p.script_override or nil end
   if not p or p.builtin or App.status(p) == "none" then return nil end
   for _, n in ipairs(Manifest.found(p) or {}) do
     n = tostring(n)
