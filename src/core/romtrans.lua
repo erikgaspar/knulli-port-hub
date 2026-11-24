@@ -640,11 +640,11 @@ function M.get_patch(t, work)
   if arch == "zip" then
     local out, perr = py("pick " .. q(dl, t.patch_file or "", t.patch_format, patch))
     if not out then error("não foi possível abrir o zip do patch: " .. perr, 0) end
-  elseif arch == "7z" then
+  elseif arch == "7z" or arch == "rar" then
     local x = work .. "/x"
     mkdir_p(x)
     local out, rc = run(U.shq(M.cfg.sevenz) .. " x -y -bd " .. U.shq("-o" .. x) .. " " .. U.shq(dl))
-    if rc ~= 0 then error("não foi possível extrair o 7z do patch: " .. trim(out):sub(-160), 0) end
+    if rc ~= 0 then error("não foi possível extrair o pacote do patch: " .. trim(out):sub(-160), 0) end
     local o2, perr = py("pick " .. q(x, t.patch_file or "", t.patch_format, patch))
     if not o2 then error(perr, 0) end
   elseif arch == "none" or arch == "" then
