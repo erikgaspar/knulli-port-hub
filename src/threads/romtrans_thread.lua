@@ -1,7 +1,7 @@
 -- =============================================================================
 --  Traducoes de ROMs - thread (core/romtrans.lua)
 --  Recebe { out, st, ctl, op, cfg, params }:
---    roda M.op_<op>(params); progresso no canal "st" ({done, total, text});
+--    roda M.op_<op>(params); progresso no canal "st" ({done, total, text, pct});
 --    "cancel" no canal "ctl" pede para parar (no fim do item em curso);
 --    no fim, em "out": { t = "done", results = { ok =, res = } } (formato do shjob).
 -- =============================================================================
@@ -20,12 +20,15 @@ M.cancelled = function()
   return cancelled
 end
 local last = 0
-M.progress = function(done, total, text)
+local last_key
+M.progress = function(done, total, text, pct)
   local now = love.timer.getTime()
-  if now - last < 0.1 and done ~= total then return end
-  last = now
+  -- mudanca de passo/fase passa sempre; so a porcentagem e limitada
+  local key = tostring(done) .. "|" .. tostring(text)
+  if now - last < 0.1 and done ~= total and key == last_key then return end
+  last, last_key = now, key
   ST:clear()
-  ST:push({ done = done, total = total, text = tostring(text or "") })
+  ST:push({ done = done, total = total, text = tostring(text or ""), pct = pct })
 end
 
 local fn = M["op_" .. tostring(job.op)]

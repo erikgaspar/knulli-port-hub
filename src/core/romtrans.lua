@@ -15,6 +15,12 @@
 --                <APP_DIR>/conf/romtrans.json.
 --  3. desfazer : devolve a original do backup e tira o " (PT-BR)".
 --
+--  Jogos de CD (core/romtrans_cd.lua): .bin (da faixa de dados) e .iso soltos
+--  seguem o fluxo acima, com a pasta de trabalho no cartao e a conta do pior
+--  caso de espaco; o " (PT-BR)" vai na entrada do gamelist (o .cue/.m3u que
+--  cita o .bin). .chd: "verificar" extrai e guarda o hash das faixas em cache;
+--  traduzir extrai, aplica na faixa, recria, confere e troca (mesmo nome).
+--
 --  As operacoes demoradas rodam em threads/romtrans_thread.lua (M.run). As
 --  funcoes M.op_* tambem podem ser chamadas direto (testes).
 --  Este modulo nao depende de love.* nem de config na carga (roda na thread).
@@ -22,6 +28,7 @@
 local U = require("lib.util")
 local json = require("lib.json")
 local LT = require("core.libtools")   -- so parse/get/set/serialize do gamelist
+local CD = require("core.romtrans_cd") -- jogos de CD (.chd, .cue/.bin, .iso)
 
 local M = {}
 
@@ -42,6 +49,9 @@ M.cfg = {
   sevenz = "7zzs",
   index_url = M.DEFAULT_URL,
   embedded = nil,                   -- texto da copia embutida (lido pelo app)
+  chdman_dir = "/userdata/system/knulli-port-hub/tools/chdman",   -- o do "Converter para CHD"
+  work_dir = nil,                   -- pasta de trabalho dos jogos de CD (nil = tmp_dir)
+  fake_free_kb = nil,               -- testes: espaco livre simulado (KB)
 }
 function M.setup(cfg)
   for k, v in pairs(cfg or {}) do M.cfg[k] = v end
@@ -92,6 +102,7 @@ M.run_cmd = run
 local function py_cmd(args)
   return M.cfg.python .. " -I " .. U.shq(M.cfg.py) .. " " .. args
 end
+M.py_cmd = py_cmd
 
 local function py(args)
   local out, rc = run(py_cmd(args))
@@ -104,6 +115,7 @@ local function py(args)
   end
   return out
 end
+M.py = py
 
 local function q(...)
   local t = {}
@@ -124,6 +136,7 @@ end
 
 --- espaco livre (KB) na particao de `path` (sobe ate achar uma pasta que existe)
 function M.free_kb(path)
+  if M.cfg.fake_free_kb then return M.cfg.fake_free_kb end   -- testes
   local p = path
   for _ = 1, 12 do
     if exists(p) or sh_ok("test -d " .. U.shq(p)) then break end
@@ -458,8 +471,8 @@ function M.scan_files(idx)
   return d
 end
 
---- candidatos de hash de cada arquivo: { h, file, inzip, header }
-local function candidates(f)
+--- candidatos de hash de cada arquivo: { h, file, inzip, header, track }
+local function candidates(f, chd_cache)
   local c = {}
   local function add(h, inzip)
     if h.crc32 or h.sha1 or h.md5 then c[#c + 1] = { h = h, file = f, inzip = inzip } end
@@ -472,8 +485,30 @@ local function candidates(f)
     for _, e in ipairs(f.entries or {}) do add(e, e.name) end
   elseif f.kind == "file" then
     add(f)
+  elseif f.kind == "chd" and not CD.unsupported(f) then
+    -- .chd ja verificado: uma candidata por faixa
+    local e, sha = CD.cached(chd_cache, f)
+    if e then
+      f.chd_sha1, f.cd_logical = sha, e.logical
+      for _, tk in ipairs(e.tracks or {}) do
+        c[#c + 1] = { h = tk, file = f, track = tk.n }
+      end
+    end
   end
   return c
+end
+
+--- entradas do gamelist que representam o arquivo (o proprio, o .cue que cita o
+--- .bin e os .m3u que citam um ou outro), na ordem de preferencia
+local function gl_rels_of(f, refs)
+  local list, seen = {}, {}
+  local function add(r) if r and not seen[r] then seen[r] = true; list[#list + 1] = r end end
+  add(f.rel)
+  for _, cue in ipairs(refs[f.rel] or {}) do
+    add(cue)
+    for _, m3u in ipairs(refs[cue] or {}) do add(m3u) end
+  end
+  return list
 end
 
 --- cruza o indice com os arquivos. Devolve { matches, translated, others, skipped }
@@ -483,11 +518,27 @@ function M.match(idx, scan, reg)
   local names = {}
   local skipped = 0
   local ptbr_files = {}
+  local chd_cache = CD.cache_load()
+  -- .cue/.m3u: quem cita quem (por sistema). refs[citado] = { quem cita }
+  local refs = {}
+  for _, f in ipairs(scan.files or {}) do
+    if f.kind == "cue" or f.kind == "m3u" then
+      refs[f.sys] = refs[f.sys] or {}
+      for _, r in ipairs(f.refs or {}) do
+        local l = refs[f.sys][r] or {}
+        refs[f.sys][r] = l
+        l[#l + 1] = f.rel
+      end
+    end
+  end
   for _, f in ipairs(scan.files or {}) do
     local s = by_sys[f.sys]
     if not s then s = { files = {}, sha1 = {}, md5 = {}, crc32 = {} }; by_sys[f.sys] = s end
     names[f.sys] = names[f.sys] or M.gl_names(f.sys)
-    f.name = names[f.sys][f.rel]
+    f.gl_rels = gl_rels_of(f, refs[f.sys] or {})
+    for _, r in ipairs(f.gl_rels) do
+      if names[f.sys][r] then f.name = names[f.sys][r]; break end
+    end
     local key = f.sys .. "/" .. f.rel
     if reg.items[key] then
       -- ja traduzido pelo app: fora das sugestoes
@@ -497,7 +548,7 @@ function M.match(idx, scan, reg)
       s.files[#s.files + 1] = f
     else
       s.files[#s.files + 1] = f
-      for _, c in ipairs(candidates(f)) do
+      for _, c in ipairs(candidates(f, chd_cache)) do
         for _, k in ipairs(HASH_KEYS) do
           local v = c.h[k] and lower(c.h[k])
           if v then
@@ -534,7 +585,9 @@ function M.match(idx, scan, reg)
           local f = c.file
           matches[#matches + 1] = { key = f.sys .. "/" .. f.rel .. "#" .. t.id, sys = f.sys, rel = f.rel,
             path = f.path, size = f.size, mtime = f.mtime, inzip = c.inzip, header = c.header or false,
-            how = how, name = f.name or stem(f.rel), t = t, before = c.h }
+            how = how, name = f.name or stem(f.rel), t = t, before = c.h,
+            kind = f.kind == "chd" and "chd" or nil, track = c.track, chd_sha1 = f.chd_sha1,
+            cd_logical = f.cd_logical, cd = CD.is_cd(f.sys, f.rel) or nil, gl_rels = f.gl_rels }
         end
       end
       -- arquivo que ja e o resultado da traducao (traduzido fora do app)
@@ -552,22 +605,36 @@ function M.match(idx, scan, reg)
       end
     end
     if not found then
-      local state, similar = s and "missing" or "no_system", nil
+      local state, similar, file, why = s and "missing" or "no_system", nil, nil, nil
       if s then
+        -- o arquivo parecido "mais util": CHD ainda nao verificado > nao suportado > outros
+        local RANK = { chd_verify = 4, unsupported = 3, ptbr_name = 2, other_version = 1 }
+        local best = 0
         local want = { norm_title(t.title), t.rom.name and norm_title(t.rom.name) or nil }
         for _, f in ipairs(s.files) do
           local n1, n2 = norm_title(f.rel:match("([^/]+)$")), f.name and norm_title(f.name) or ""
           for _, w in ipairs(want) do
             if w and #w >= 4 and (n1 == w or n2 == w or n1:find(w, 1, true) == 1 or n2:find(w, 1, true) == 1) then
-              state, similar = "other_version", f.rel
-              if ptbr_files[f.sys .. "/" .. f.rel] then state = "ptbr_name" end
+              local st, wy = "other_version", nil
+              if ptbr_files[f.sys .. "/" .. f.rel] then st = "ptbr_name"
+              else
+                wy = CD.unsupported(f)
+                if wy then st = "unsupported"
+                elseif f.kind == "chd" and not CD.cached(chd_cache, f) then st = "chd_verify" end
+              end
+              if RANK[st] > best then
+                best = RANK[st]
+                state, similar, why = st, f.rel, wy
+                file = (st == "chd_verify") and { path = f.path, size = f.size, mtime = f.mtime, sys = f.sys,
+                  rel = f.rel, name = f.name, kind = f.kind } or nil
+              end
               break
             end
           end
-          if similar then break end
         end
       end
-      others[#others + 1] = { key = t.system .. "#" .. t.id, t = t, state = state, similar = similar, sys = t.system }
+      others[#others + 1] = { key = t.system .. "#" .. t.id, t = t, state = state, similar = similar, sys = t.system,
+        file = file, why = why }
     end
   end
   for key, rec in pairs(reg.items) do
@@ -583,7 +650,7 @@ function M.match(idx, scan, reg)
   table.sort(matches, by_name)
   table.sort(translated, by_name)
   table.sort(others, function(a, b)
-    local order = { other_version = 1, ptbr_name = 2, missing = 3, no_system = 4 }
+    local order = { chd_verify = 0, other_version = 1, unsupported = 1.5, ptbr_name = 2, missing = 3, no_system = 4 }
     if a.state ~= b.state then return order[a.state] < order[b.state] end
     return lower(a.t.title) < lower(b.t.title)
   end)
@@ -603,21 +670,73 @@ function M.op_scan(p)
   r.files = #(scan.files or {})
   r.errors = scan.errors
   r.cancelled = scan.cancelled or M.cancelled()
+  r.chdman = CD.installed()
+  r.work_dir = CD.work_dir()
   return r
 end
 
 -------------------------------------------------------------------------------
 -- 2. TRADUZIR
 -------------------------------------------------------------------------------
-local function new_workdir()
-  local d = M.cfg.tmp_dir .. "/romtrans-" .. os.time() .. "-" .. math.random(100000, 999999)
+local function new_workdir(base)
+  local d = (base or M.cfg.tmp_dir) .. "/romtrans-" .. os.time() .. "-" .. math.random(100000, 999999)
   if not mkdir_p(d) then error("não foi possível criar " .. d, 0) end
   return d
 end
+M.new_workdir = new_workdir
 
 local function inside_root(path)
   local r = M.cfg.root .. "/"
   return path and path:sub(1, #r) == r and not path:find("/%.%./") and not path:find("/%.%.$")
+end
+M.inside_root = inside_root
+
+--- grava o arquivo pronto (final) no lugar de m.path, com o mesmo nome; a
+--- original vai para o backup. Devolve o caminho do backup (erro se falhar)
+function M.install_file(final, m)
+  local bpath = M.cfg.backup_dir .. "/" .. m.sys .. "/" .. m.rel
+  if exists(bpath) then bpath = bpath .. "." .. os.date("%Y%m%d-%H%M%S") end
+  if not mkdir_p(dir_of(bpath)) then error("não foi possível criar " .. dir_of(bpath), 0) end
+  local newp = dir_of(m.path) .. "/." .. base_of(m.path) .. ".porthub-new"
+  os.remove(newp)
+  local mok, merr = M.move(final, newp)
+  if not mok then error(merr, 0) end
+  local bok, berr = M.move(m.path, bpath)
+  if not bok then os.remove(newp); error("não foi possível guardar a original: " .. tostring(berr), 0) end
+  local rok, rerr = os.rename(newp, m.path)
+  if not rok then
+    M.move(bpath, m.path)
+    os.remove(newp)
+    error("não foi possível gravar a ROM traduzida: " .. tostring(rerr), 0)
+  end
+  return bpath
+end
+
+--- gamelist (" (PT-BR)" na entrada do jogo: o arquivo, o .cue ou o .m3u) e
+--- registro. x = { backup, before, after, file_before, file_after, verified, ... }
+function M.finish_translate(m, x)
+  local t = m.t
+  local rkey = m.sys .. "/" .. m.rel
+  local glok, gname, gnew, glrel
+  for _, rel in ipairs(m.gl_rels or { m.rel }) do
+    glok, gname, gnew = M.gl_rename(m.sys, rel, add_suffix)
+    if glok then glrel = rel; break end
+  end
+  local function hs(h) return h and { size = h.size, crc32 = h.crc32, md5 = h.md5, sha1 = h.sha1 } or nil end
+  local rec = { key = rkey, sys = m.sys, rel = m.rel, path = m.path, file = base_of(m.path), id = t.id,
+    title = t.title, group = t.group, version = t.version, lang = t.lang, format = t.patch_format,
+    inzip = m.inzip, header_removed = x.header_removed or false, verified = x.verified,
+    kind = x.kind, track = x.track, cd = m.cd, chd_before = x.chd_before, chd_after = x.chd_after,
+    before = hs(x.before), after = hs(x.after),
+    file_before = x.file_before, file_after = x.file_after,
+    backup = x.backup, date = os.date("%Y-%m-%d %H:%M"),
+    gl_rel = glrel ~= m.rel and glrel or nil,
+    gl_name_before = glok and gname or nil, gl_name_after = glok and gnew or nil,
+    gl_note = not glok and gname or nil }
+  local reg = M.reg_load()
+  reg.items[rkey] = rec
+  local sok, serr = M.reg_save(reg)
+  return { ok = true, rec = rec, gl_note = not glok and gname or nil, reg_err = not sok and serr or nil }
 end
 
 --- baixa e prepara o patch (extrai de zip/7z). Devolve o caminho do patch
@@ -668,10 +787,18 @@ function M.op_translate(p)
   local cur = fsize(m.path)
   if not cur then error("a ROM não está mais em " .. m.path, 0) end
   if cur ~= m.size then error("a ROM mudou desde a busca; procure de novo", 0) end
+  if m.kind == "chd" then return CD.translate_chd(m) end
   local data_size = (m.before and m.before.size) or cur
-  need_space(M.cfg.tmp_dir, data_size * 3 + cur, "os arquivos temporários")
+  -- .bin/.iso de CD solto: pasta de trabalho no cartao e conta do pior caso
+  local cdfile = m.cd and not m.inzip
+  if cdfile then
+    local sok, serr = CD.check_space(CD.space_file(m))
+    if not sok then error(serr, 0) end
+  else
+    need_space(M.cfg.tmp_dir, data_size * 3 + cur, "os arquivos temporários")
+  end
 
-  local work = new_workdir()
+  local work = new_workdir(cdfile and CD.work_dir() or nil)
   local ok, res = pcall(function()
     step(1, "Baixando o patch")
     local patch = M.get_patch(t, work)
@@ -732,37 +859,12 @@ function M.op_translate(p)
     if not fh or not fb then error("não foi possível conferir os arquivos", 0) end
 
     step(6, "Guardando a original e gravando a traduzida")
-    local bpath = M.cfg.backup_dir .. "/" .. m.sys .. "/" .. m.rel
-    if exists(bpath) then bpath = bpath .. "." .. os.date("%Y%m%d-%H%M%S") end
-    if not mkdir_p(dir_of(bpath)) then error("não foi possível criar " .. dir_of(bpath), 0) end
-    local newp = dir_of(m.path) .. "/." .. base_of(m.path) .. ".porthub-new"
-    os.remove(newp)
-    local mok, merr = M.move(final, newp)
-    if not mok then error(merr, 0) end
-    local bok, berr = M.move(m.path, bpath)
-    if not bok then os.remove(newp); error("não foi possível guardar a original: " .. tostring(berr), 0) end
-    local rok, rerr = os.rename(newp, m.path)
-    if not rok then
-      M.move(bpath, m.path)
-      os.remove(newp)
-      error("não foi possível gravar a ROM traduzida: " .. tostring(rerr), 0)
-    end
+    local bpath = M.install_file(final, m)
 
     step(7, "Atualizando a lista de jogos")
-    local glok, gname, gnew = M.gl_rename(m.sys, m.rel, add_suffix)
-    local rec = { key = rkey, sys = m.sys, rel = m.rel, path = m.path, file = base_of(m.path), id = t.id,
-      title = t.title, group = t.group, version = t.version, lang = t.lang, format = t.patch_format,
-      inzip = m.inzip, header_removed = strip, verified = verified,
-      before = { size = before.size, crc32 = before.crc32, md5 = before.md5, sha1 = before.sha1 },
-      after = { size = ah.size, crc32 = ah.crc32, md5 = ah.md5, sha1 = ah.sha1 },
-      file_before = { size = fb.size, sha1 = fb.sha1 }, file_after = { size = fh.size, sha1 = fh.sha1 },
-      backup = bpath, date = os.date("%Y-%m-%d %H:%M"),
-      gl_name_before = glok and gname or nil, gl_name_after = glok and gnew or nil,
-      gl_note = not glok and gname or nil }
-    reg = M.reg_load()
-    reg.items[rkey] = rec
-    local sok, serr = M.reg_save(reg)
-    return { ok = true, rec = rec, gl_note = not glok and gname or nil, reg_err = not sok and serr or nil }
+    return M.finish_translate(m, { header_removed = strip, verified = verified, backup = bpath,
+      before = before, after = ah,
+      file_before = { size = fb.size, sha1 = fb.sha1 }, file_after = { size = fh.size, sha1 = fh.sha1 } })
   end)
   sh_ok("rm -rf " .. U.shq(work))
   if not ok then error(res, 0) end
@@ -785,8 +887,14 @@ function M.op_undo(p)
   end
   local present = exists(rec.path)
   if present and not p.force then
-    local h = M.hash(rec.path)
-    if not h or (rec.file_after and rec.file_after.sha1 and h.sha1 ~= rec.file_after.sha1) then
+    local same
+    if rec.kind == "chd" then
+      same = CD.same_chd(rec)   -- SHA1 do cabecalho do CHD (sem ler o arquivo todo)
+    else
+      local h = M.hash(rec.path)
+      same = h and not (rec.file_after and rec.file_after.sha1 and h.sha1 ~= rec.file_after.sha1)
+    end
+    if not same then
       return { need_force = true, reason = "a ROM atual não é a que o app gravou (foi trocada ou o jogo gravou nela)" }
     end
   end
@@ -808,7 +916,7 @@ function M.op_undo(p)
   end
   os.remove(oldp)
   M.progress(3, 4, "Atualizando a lista de jogos")
-  local glok, gerr = M.gl_rename(rec.sys, rec.rel, function(name)
+  local glok, gerr = M.gl_rename(rec.sys, rec.gl_rel or rec.rel, function(name)
     local s = del_suffix(name)
     return s ~= "" and s or nil
   end)
@@ -852,7 +960,16 @@ function M.app_setup()
     sevenz = C.APP_DIR .. "/bin/7zzs",
     index_url = url,
     embedded = embedded,
+    chdman_dir = os.getenv("PORTHUB_CHDCONV_TOOL") or "/userdata/system/knulli-port-hub/tools/chdman",
+    fake_free_kb = tonumber(os.getenv("PORTHUB_ROMTRANS_FREE_KB") or ""),
   })
+  -- pasta de trabalho dos jogos de CD: variavel (testes) > configuracao (so dentro de /userdata) > tmp do app
+  local w = os.getenv("PORTHUB_ROMTRANS_WORK")
+  if not w or w == "" then
+    w = CD.load_settings().work_dir
+    if w and not CD.valid_work_dir(w) then w = nil end
+  end
+  M.cfg.work_dir = w
 end
 
 M.job = nil   -- { op, status = {done,total,text}, cancel() }
@@ -887,5 +1004,10 @@ function M.run(op, params, on_done)
   th:start({ out = base, st = base .. "_st", ctl = base .. "_ctl", op = op, cfg = M.cfg, params = params or {} })
   return job
 end
+
+-- jogos de CD
+CD.bind(M)
+M.CD = CD
+M.op_verify_chd = CD.op_verify
 
 return M

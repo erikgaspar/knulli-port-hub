@@ -371,6 +371,7 @@ local function run_chdman(args, on_pct)
   h:close()
   return rc == 0 and not cancelled, table.concat(tail, "\n"), cancelled
 end
+M.run_chdman = run_chdman   -- tambem usado por core/romtrans_cd.lua (extractcd/createcd)
 
 local function chdman_args(it, src, dst)
   -- .cue, .gdi e .iso (CD de dados) usam createcd; o -o recusa sobrescrever

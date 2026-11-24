@@ -12,6 +12,7 @@
 #    romtrans_patch.py pick <zip|pasta> <patch_file> <formato> <saida>
 #    romtrans_patch.py strip512 <entrada> <saida>
 #    romtrans_patch.py apply <ips|bps|ups|ppf|aps|xdelta> <rom> <patch> <saida> [--force]
+#    romtrans_patch.py cdsplit <cue> <pasta> <saida.json>   (jogos de CD, ver abaixo)
 #
 #  Saida: "OK ..." e codigo 0; erro: "ERRO: motivo" em stderr e codigo 2.
 #  Formatos:
@@ -129,6 +130,56 @@ SKIP_EXT = {"xml", "txt", "png", "jpg", "jpeg", "gif", "bmp", "webp", "mp4", "mk
             "srm", "sav", "state", "auto", "cfg", "ini", "json", "m3u", "cue", "gdi", "ccd", "sub",
             "nfo", "dat", "db", "log", "sh", "md", "htm", "html", "lst", "bak", "tmp", "ips", "bps",
             "ups", "ppf", "xdelta", "aps", "7z", "rar"}
+# arquivos que a varredura lista sem calcular hash: .cue/.m3u (so os arquivos
+# citados) e imagens que so dao hash extraindo (.chd) ou que nao suportamos
+NOHASH_EXT = {"chd", "cso", "pbp"}
+LIST_EXT = {"cue", "m3u"}
+
+
+def list_refs(full, base):
+    """arquivos citados por um .cue (FILE "...") ou .m3u (uma linha por disco),
+    relativos a pasta do sistema."""
+    refs = []
+    try:
+        with open(full, "rb") as f:
+            raw = f.read(256 * 1024)
+    except OSError:
+        return refs
+    text = raw.decode("utf-8", "replace").lstrip("\ufeff")
+    d = os.path.dirname(full)
+    cue = full.lower().endswith(".cue")
+    for line in text.splitlines():
+        l = line.strip()
+        if not l or l.startswith("#"):
+            continue
+        if cue:
+            if not l.upper().startswith("FILE "):
+                continue
+            rest = l[5:].strip()
+            if rest.startswith('"'):
+                name = rest[1:].split('"', 1)[0]
+            else:
+                name = rest.split()[0] if rest.split() else ""
+        else:
+            name = l
+        if not name:
+            continue
+        name = name.replace("\\", "/")
+        p = os.path.normpath(name if name.startswith("/") else os.path.join(d, name))
+        if not os.path.exists(p):
+            # mesmo nome ignorando maiusculas/minusculas
+            pd, pb = os.path.dirname(p), os.path.basename(p).lower()
+            try:
+                for x in os.listdir(pd):
+                    if x.lower() == pb:
+                        p = os.path.join(pd, x)
+                        break
+            except OSError:
+                pass
+        rel = os.path.relpath(p, base)
+        if not rel.startswith(".."):
+            refs.append(rel.replace(os.sep, "/"))
+    return refs
 
 
 def write_json_atomic(path, data):
@@ -176,7 +227,7 @@ def cmd_scan(args):
                 if fn.startswith(".") or fn.startswith("gamelist"):
                     continue
                 ext = fn.rsplit(".", 1)[-1].lower() if "." in fn else ""
-                if ext in SKIP_EXT:
+                if ext in SKIP_EXT and ext not in LIST_EXT:
                     continue
                 full = os.path.join(dirpath, fn)
                 files.append((sysname, full, os.path.relpath(full, base), sizes, any_size, sig))
@@ -192,6 +243,15 @@ def cmd_scan(args):
             st = os.stat(full)
         except OSError as e:
             errors.append("%s: %s" % (full, e))
+            continue
+        bn = os.path.basename(full)
+        ext = bn.rsplit(".", 1)[-1].lower() if "." in bn else ""
+        if ext in LIST_EXT or ext in NOHASH_EXT:
+            r = {"size": st.st_size, "mtime": int(st.st_mtime), "kind": ext, "sys": sysname,
+                 "rel": rel.replace(os.sep, "/"), "path": full}
+            if ext in LIST_EXT:
+                r["refs"] = list_refs(full, os.path.join(root, sysname))
+            result.append(r)
             continue
         key = full
         c = entries.get(key)
@@ -876,7 +936,159 @@ def cmd_apply(args):
     return 0
 
 
-CMDS = {"hash": cmd_hash, "scan": cmd_scan, "zipget": cmd_zipget, "zipput": cmd_zipput,
+# -----------------------------------------------------------------------------
+# jogos de CD: divide o .bin unico do "chdman extractcd" em uma faixa por arquivo
+# (como o Redump: "Track 1" etc.), com o hash de cada uma, e escreve um .cue
+# novo com um FILE por faixa (o "chdman createcd" aceita).
+# Para nao precisar do dobro do espaco, copia da ultima faixa para a primeira e
+# vai encurtando o .bin (truncate); a 1a faixa e o proprio .bin renomeado.
+# -----------------------------------------------------------------------------
+SECTOR = {"AUDIO": 2352, "MODE1/2048": 2048, "MODE1/2352": 2352, "MODE2/2336": 2336,
+          "MODE2/2352": 2352, "MODE2/2048": 2048, "CDG": 2448, "CDI/2336": 2336, "CDI/2352": 2352}
+
+
+def msf_frames(v):
+    m, s, f = (int(x) for x in v.split(":"))
+    return (m * 60 + s) * 75 + f
+
+
+def frames_msf(n):
+    return "%02d:%02d:%02d" % (n // 4500, (n // 75) % 60, n % 75)
+
+
+def parse_cue(text):
+    """{ head: [linhas antes do 1o FILE], files: [ {name, tracks: [ {n, type, pre: [..],
+    index: [(num, frame)], post: [..]} ]} ] }"""
+    head, files = [], []
+    cur_file = cur = None
+    for raw in text.splitlines():
+        l = raw.strip()
+        if not l:
+            continue
+        up = l.upper()
+        if up.startswith("FILE "):
+            rest = l[5:].strip()
+            if rest.startswith('"'):
+                name = rest[1:].split('"', 1)[0]
+            else:
+                name = rest.split()[0]
+            cur_file = {"name": name, "tracks": []}
+            files.append(cur_file)
+            cur = None
+        elif up.startswith("TRACK "):
+            if cur_file is None:
+                fail("cue: TRACK antes de FILE")
+            p = l.split()
+            cur = {"n": int(p[1]), "type": p[2].upper(), "pre": [], "index": [], "post": []}
+            cur_file["tracks"].append(cur)
+        elif up.startswith("INDEX "):
+            if cur is None:
+                fail("cue: INDEX fora de TRACK")
+            p = l.split()
+            cur["index"].append((int(p[1]), msf_frames(p[2])))
+        elif cur is None:
+            if cur_file is None:
+                head.append(l)
+        elif up.startswith("POSTGAP"):
+            cur["post"].append(l)
+        else:
+            cur["pre"].append(l)       # FLAGS, ISRC, PREGAP, TITLE...
+    return {"head": head, "files": files}
+
+
+def copy_range(src, dst, start, length, hasher, report):
+    with open(src, "rb") as s, open(dst, "wb") as d:
+        s.seek(start)
+        left = length
+        while left > 0:
+            b = s.read(min(BUF, left))
+            if not b:
+                fail("o .bin terminou antes do esperado")
+            d.write(b)
+            hasher.update(b)
+            left -= len(b)
+            report(len(b))
+
+
+def cmd_cdsplit(args):
+    cue_path, outdir, out_json = args
+    cue = parse_cue(open(cue_path, encoding="utf-8", errors="replace").read())
+    if len(cue["files"]) != 1:
+        fail("cue com %d arquivos (esperado 1, do chdman)" % len(cue["files"]))
+    fe = cue["files"][0]
+    tracks = fe["tracks"]
+    if not tracks:
+        fail("cue sem faixas")
+    binp = os.path.join(os.path.dirname(cue_path), fe["name"])
+    size = os.path.getsize(binp)
+    offs = []
+    for i, t in enumerate(tracks):
+        if t["type"] not in SECTOR:
+            fail("tipo de faixa desconhecido: " + t["type"])
+        if not t["index"]:
+            fail("faixa %d sem INDEX" % t["n"])
+        t["start"] = min(f for _, f in t["index"])
+        if i == 0:
+            offs.append(t["start"] * SECTOR[t["type"]])
+        else:
+            prev = tracks[i - 1]
+            offs.append(offs[-1] + (t["start"] - prev["start"]) * SECTOR[prev["type"]])
+    if offs[0] != 0 or any(offs[i] > offs[i + 1] for i in range(len(offs) - 1)) or offs[-1] > size:
+        fail("as faixas do cue nao batem com o tamanho do .bin")
+    os.makedirs(outdir, exist_ok=True)
+    total = size
+    done = [0]
+
+    def report(n):
+        done[0] += n
+        sys.stdout.write("P\t%d\t%d\n" % (done[0], total))
+        sys.stdout.flush()
+    res = [None] * len(tracks)
+    end = size
+    for i in range(len(tracks) - 1, -1, -1):
+        t = tracks[i]
+        name = "track%02d.bin" % t["n"]
+        dst = os.path.join(outdir, name)
+        h = Hasher()
+        if i == 0:
+            with open(binp, "r+b") as f:
+                f.truncate(end)
+            if os.path.abspath(binp) != os.path.abspath(dst):
+                os.replace(binp, dst)
+            with open(dst, "rb") as f:
+                while True:
+                    b = f.read(BUF)
+                    if not b:
+                        break
+                    h.update(b)
+                    report(len(b))
+        else:
+            copy_range(binp, dst, offs[i], end - offs[i], h, report)
+            with open(binp, "r+b") as f:
+                f.truncate(offs[i])
+        r = h.result()
+        r.update({"n": t["n"], "type": t["type"], "file": name, "sector": SECTOR[t["type"]]})
+        res[i] = r
+        end = offs[i]
+    lines = list(cue["head"])
+    for t in tracks:
+        lines.append('FILE "track%02d.bin" BINARY' % t["n"])
+        lines.append("  TRACK %02d %s" % (t["n"], t["type"]))
+        for l in t["pre"]:
+            lines.append("    " + l)
+        for num, f in t["index"]:
+            lines.append("    INDEX %02d %s" % (num, frames_msf(f - t["start"])))
+        for l in t["post"]:
+            lines.append("    " + l)
+    new_cue = os.path.join(outdir, "disc.cue")
+    with open(new_cue, "w", encoding="utf-8", newline="\r\n") as f:
+        f.write("\n".join(lines) + "\n")
+    write_json_atomic(out_json, {"cue": new_cue, "tracks": res})
+    print("OK %d" % len(res))
+    return 0
+
+
+CMDS = {"cdsplit": cmd_cdsplit, "hash": cmd_hash, "scan": cmd_scan, "zipget": cmd_zipget, "zipput": cmd_zipput,
         "pick": cmd_pick, "strip512": cmd_strip512, "apply": cmd_apply}
 
 
