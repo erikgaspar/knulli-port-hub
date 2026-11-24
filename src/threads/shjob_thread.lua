@@ -11,7 +11,8 @@ local OUT = love.thread.getChannel(job.out)
 local res = {}
 for i, cmd in ipairs(job.cmds or {}) do
   local t0 = love.timer.getTime()
-  local p = io.popen(cmd .. " 2>/dev/null; echo \"__rc=$?\"")
+  -- subshell: um "exit N" no fim do comando nao impede a linha do codigo de saida
+  local p = io.popen("( " .. cmd .. "\n) 2>/dev/null; echo \"__rc=$?\"")
   local s = p and p:read("*a") or ""
   if p then p:close() end
   local rc = tonumber(s:match("__rc=(%d+)%s*$")) or 1

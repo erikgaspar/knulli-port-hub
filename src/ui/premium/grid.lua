@@ -96,6 +96,12 @@ function PG.draw_card(p, x, y, m, k, on, o)
   -- imagem: icone da ferramenta (integrada) ou capa recortada em quadrado
   local isz = bh - 20
   local bgc = on and c.surf2 or c.surf
+  -- imagem do proprio app (card_image: caminho dentro do .love), lida uma vez
+  if p.card_image and p.card_img == nil then
+    local ok, img = pcall(love.graphics.newImage, p.card_image)
+    p.card_img = ok and img or false
+    if ok then img:setFilter("linear", "linear") end
+  end
   if p.card_img then
     PS.rect(bx + 10, by + 10, isz, isz, c.bg, 10)
     PS.draw_cover_fit(p.card_img, bx + 10, by + 10, isz, isz)

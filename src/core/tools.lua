@@ -18,10 +18,18 @@ T.LIST = {
   { id = "hub_tool_esthemes", name = L("Loja de Temas"), screen = "esthemes", icon = "ferramentas_de_sistema",
     category = L("Ferramentas de sistema"), category_id = "ferramentas_de_sistema",
     short = L("Temas do EmulationStation compatíveis com o sistema do console: visualizar, baixar, instalar e desinstalar.") },
+  { id = "hub_tool_music", name = L("Pacote de músicas de games"), screen = "musicpack", icon = "set_audio",
+    card_image = "assets/cards/musicpack.png", knulli_only = true,
+    short = L("32 remixes do OverClocked ReMix (Mario, Zelda, Sonic, Chrono Trigger...) para tocar no menu do Knulli. Baixa no console, com créditos.") },
   { id = "hub_tool_analog", name = "R36S Analog Tester", screen = "padtest", icon = "testes_de_controles",
     category = L("Testes de controles"), category_id = "testes_de_controles", test_type = "completo",
     short = L("Teste dos dois analógicos (alcance, zona morta, deriva) e de todos os botões, com relatório. Por LagdoLira.") },
 }
+
+-- ferramentas so do Knulli Port Hub (no R36S nao aparecem)
+if not require("config").KNULLI then
+  for i = #T.LIST, 1, -1 do if T.LIST[i].knulli_only then table.remove(T.LIST, i) end end
+end
 
 for _, t in ipairs(T.LIST) do
   t.builtin = true

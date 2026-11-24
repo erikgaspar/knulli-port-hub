@@ -1,0 +1,593 @@
+{
+ "format": 1,
+ "title": "Pacote de músicas de games (OverClocked ReMix)",
+ "updated": "2026-11-24",
+ "about": "Índice das faixas do pacote de músicas do Knulli Port Hub. Os arquivos de áudio NÃO ficam neste repositório: cada console baixa o MP3 do espelho oficial do OverClocked ReMix (ocremix.org), confere com ffprobe e converte para OGG Vorbis 96 kbps. Os arranjos pertencem aos seus artistas; as composições originais, aos seus donos. size = tamanho estimado do OGG, mp3_size = tamanho do download.",
+ "source": "https://ocremix.org",
+ "license_note": "OverClocked ReMix: arranjos de fãs distribuídos gratuitamente para uso pessoal, não comercial. Mais informações em https://ocremix.org",
+ "folder": "ocremix",
+ "bitrate_kbps": 96,
+ "tracks": [
+  {
+   "id": "OCR00245",
+   "game": "Akumajo Dracula X: Rondo of Blood",
+   "title": "Dance, Richter, Dance",
+   "artists": [
+    "DJ 3dn3r"
+   ],
+   "page": "https://ocremix.org/remix/OCR00245",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Akumajo_Dracula_X_Rondo_of_Blood_Dance_Richter_Dance_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Akumajo_Dracula_X_Rondo_of_Blood_Dance_Richter_Dance_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Akumajo_Dracula_X_Rondo_of_Blood_Dance_Richter_Dance_OC_ReMix.mp3"
+   ],
+   "duration": 204,
+   "mp3_size": 3348153,
+   "size": 2513149,
+   "file": "Akumajo Dracula X - Rondo of Blood - Dance, Richter, Dance (OCRemix, DJ 3dn3r).ogg"
+  },
+  {
+   "id": "OCR01707",
+   "game": "Castlevania: Aria of Sorrow",
+   "title": "In the Darkness of Time",
+   "artists": [
+    "Rize"
+   ],
+   "page": "https://ocremix.org/remix/OCR01707",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Castlevania_Aria_of_Sorrow_In_the_Darkness_of_Time_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Castlevania_Aria_of_Sorrow_In_the_Darkness_of_Time_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Castlevania_Aria_of_Sorrow_In_the_Darkness_of_Time_OC_ReMix.mp3"
+   ],
+   "duration": 221,
+   "mp3_size": 4919958,
+   "size": 2438178,
+   "file": "Castlevania - Aria of Sorrow - In the Darkness of Time (OCRemix, Rize).ogg"
+  },
+  {
+   "id": "OCR02045",
+   "game": "Castlevania: Symphony of the Night",
+   "title": "Wandering Latinas",
+   "artists": [
+    "Joshua Morse"
+   ],
+   "page": "https://ocremix.org/remix/OCR02045",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Castlevania_Symphony_of_the_Night_Wandering_Latinas_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Castlevania_Symphony_of_the_Night_Wandering_Latinas_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Castlevania_Symphony_of_the_Night_Wandering_Latinas_OC_ReMix.mp3"
+   ],
+   "duration": 317,
+   "mp3_size": 9867527,
+   "size": 4086290,
+   "file": "Castlevania - Symphony of the Night - Wandering Latinas (OCRemix, Joshua Morse).ogg"
+  },
+  {
+   "id": "OCR01055",
+   "game": "Chrono Cross",
+   "title": "Dream-Shore Sonata-Fantaisie",
+   "artists": [
+    "MC"
+   ],
+   "page": "https://ocremix.org/remix/OCR01055",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Chrono_Cross_Dream-Shore_Sonata-Fantaisie_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Chrono_Cross_Dream-Shore_Sonata-Fantaisie_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Chrono_Cross_Dream-Shore_Sonata-Fantaisie_OC_ReMix.mp3"
+   ],
+   "duration": 196,
+   "mp3_size": 2858056,
+   "size": 1722685,
+   "file": "Chrono Cross - Dream-Shore Sonata-Fantaisie (OCRemix, MC).ogg"
+  },
+  {
+   "id": "OCR04731",
+   "game": "Chrono Trigger",
+   "title": "Ambience of the Forest",
+   "artists": [
+    "jnWake",
+    "Emunator"
+   ],
+   "page": "https://ocremix.org/remix/OCR04731",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Chrono_Trigger_Ambience_of_the_Forest_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Chrono_Trigger_Ambience_of_the_Forest_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Chrono_Trigger_Ambience_of_the_Forest_OC_ReMix.mp3"
+   ],
+   "duration": 274,
+   "mp3_size": 7971915,
+   "size": 3193189,
+   "file": "Chrono Trigger - Ambience of the Forest (OCRemix, jnWake, Emunator).ogg"
+  },
+  {
+   "id": "OCR02365",
+   "game": "Chrono Trigger",
+   "title": "By the Old Mill",
+   "artists": [
+    "Harjawaldar"
+   ],
+   "page": "https://ocremix.org/remix/OCR02365",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Chrono_Trigger_By_the_Old_Mill_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Chrono_Trigger_By_the_Old_Mill_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Chrono_Trigger_By_the_Old_Mill_OC_ReMix.mp3"
+   ],
+   "duration": 211,
+   "mp3_size": 4295824,
+   "size": 2682207,
+   "file": "Chrono Trigger - By the Old Mill (OCRemix, Harjawaldar).ogg"
+  },
+  {
+   "id": "OCR04906",
+   "game": "Chrono Trigger",
+   "title": "Guardia at Peace",
+   "artists": [
+    "Argle"
+   ],
+   "page": "https://ocremix.org/remix/OCR04906",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Chrono_Trigger_Guardia_at_Peace_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Chrono_Trigger_Guardia_at_Peace_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Chrono_Trigger_Guardia_at_Peace_OC_ReMix.mp3"
+   ],
+   "duration": 213,
+   "mp3_size": 5875125,
+   "size": 2321741,
+   "file": "Chrono Trigger - Guardia at Peace (OCRemix, Argle).ogg"
+  },
+  {
+   "id": "OCR01906",
+   "game": "Donkey Kong Country",
+   "title": "Dolphin Ride",
+   "artists": [
+    "Monkey Kong"
+   ],
+   "page": "https://ocremix.org/remix/OCR01906",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Donkey_Kong_Country_Dolphin_Ride_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Donkey_Kong_Country_Dolphin_Ride_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Donkey_Kong_Country_Dolphin_Ride_OC_ReMix.mp3"
+   ],
+   "duration": 349,
+   "mp3_size": 5682295,
+   "size": 3955349,
+   "file": "Donkey Kong Country - Dolphin Ride (OCRemix, Monkey Kong).ogg"
+  },
+  {
+   "id": "OCR03669",
+   "game": "Final Fantasy VI",
+   "title": "Snowy Pines",
+   "artists": [
+    "RebeccaETripp"
+   ],
+   "page": "https://ocremix.org/remix/OCR03669",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Final_Fantasy_6_Snowy_Pines_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Final_Fantasy_6_Snowy_Pines_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Final_Fantasy_6_Snowy_Pines_OC_ReMix.mp3"
+   ],
+   "duration": 347,
+   "mp3_size": 9413675,
+   "size": 3925177,
+   "file": "Final Fantasy VI - Snowy Pines (OCRemix, RebeccaETripp).ogg"
+  },
+  {
+   "id": "OCR00440",
+   "game": "Final Fantasy VII",
+   "title": "Aeris Summer Samba",
+   "artists": [
+    "Lau"
+   ],
+   "page": "https://ocremix.org/remix/OCR00440",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Final_Fantasy_7_Aeris_Summer_Samba_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Final_Fantasy_7_Aeris_Summer_Samba_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Final_Fantasy_7_Aeris_Summer_Samba_OC_ReMix.mp3"
+   ],
+   "duration": 317,
+   "mp3_size": 3892897,
+   "size": 3351437,
+   "file": "Final Fantasy VII - Aeris Summer Samba (OCRemix, Lau).ogg"
+  },
+  {
+   "id": "OCR02611",
+   "game": "Kirby's Adventure",
+   "title": "Welcome to Rainbow Resort",
+   "artists": [
+    "Select Start"
+   ],
+   "page": "https://ocremix.org/remix/OCR02611",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Kirby's_Adventure_Welcome_to_Rainbow_Resort_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Kirby's_Adventure_Welcome_to_Rainbow_Resort_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Kirby's_Adventure_Welcome_to_Rainbow_Resort_OC_ReMix.mp3"
+   ],
+   "duration": 209,
+   "mp3_size": 5888617,
+   "size": 2256251,
+   "file": "Kirbys Adventure - Welcome to Rainbow Resort (OCRemix, Select Start).ogg"
+  },
+  {
+   "id": "OCR02614",
+   "game": "Mega Man 2",
+   "title": "Light Your Way",
+   "artists": [
+    "AMT",
+    "Nabeel Ansari"
+   ],
+   "page": "https://ocremix.org/remix/OCR02614",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Mega_Man_2_Light_Your_Way_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Mega_Man_2_Light_Your_Way_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Mega_Man_2_Light_Your_Way_OC_ReMix.mp3"
+   ],
+   "duration": 191,
+   "mp3_size": 4674702,
+   "size": 2235338,
+   "file": "Mega Man 2 - Light Your Way (OCRemix, AMT, Nabeel Ansari).ogg"
+  },
+  {
+   "id": "OCR00525",
+   "game": "Mega Man X",
+   "title": "Airbased",
+   "artists": [
+    "Chikusho Sound Team"
+   ],
+   "page": "https://ocremix.org/remix/OCR00525",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Mega_Man_X_Airbased_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Mega_Man_X_Airbased_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Mega_Man_X_Airbased_OC_ReMix.mp3"
+   ],
+   "duration": 238,
+   "mp3_size": 5801433,
+   "size": 2518904,
+   "file": "Mega Man X - Airbased (OCRemix, Chikusho Sound Team).ogg"
+  },
+  {
+   "id": "OCR02405",
+   "game": "Mega Man X2",
+   "title": "X-Hunted",
+   "artists": [
+    "Dominic Ninmark",
+    "StrangeJam"
+   ],
+   "page": "https://ocremix.org/remix/OCR02405",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Mega_Man_X2_X-Hunted_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Mega_Man_X2_X-Hunted_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Mega_Man_X2_X-Hunted_OC_ReMix.mp3"
+   ],
+   "duration": 311,
+   "mp3_size": 8932258,
+   "size": 3583395,
+   "file": "Mega Man X2 - X-Hunted (OCRemix, Dominic Ninmark, StrangeJam).ogg"
+  },
+  {
+   "id": "OCR03460",
+   "game": "Mega Man X3",
+   "title": "Tropical Relaxation Method",
+   "artists": [
+    "timaeus222"
+   ],
+   "page": "https://ocremix.org/remix/OCR03460",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Mega_Man_X3_Tropical_Relaxation_Method_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Mega_Man_X3_Tropical_Relaxation_Method_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Mega_Man_X3_Tropical_Relaxation_Method_OC_ReMix.mp3"
+   ],
+   "duration": 182,
+   "mp3_size": 5239818,
+   "size": 2146161,
+   "file": "Mega Man X3 - Tropical Relaxation Method (OCRemix, timaeus222).ogg"
+  },
+  {
+   "id": "OCR04585",
+   "game": "Pokémon Red Version",
+   "title": "Look at All the Ships!",
+   "artists": [
+    "ZackParrish",
+    "Pearl Pixel",
+    "Jeff Ball"
+   ],
+   "page": "https://ocremix.org/remix/OCR04585",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Pokemon_Red_Version_Look_at_All_the_Ships_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Pokemon_Red_Version_Look_at_All_the_Ships_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Pokemon_Red_Version_Look_at_All_the_Ships_OC_ReMix.mp3"
+   ],
+   "duration": 251,
+   "mp3_size": 6103226,
+   "size": 2755114,
+   "file": "Pokemon Red Version - Look at All the Ships (OCRemix, ZackParrish, Pearl Pixel, Jeff Ball).ogg"
+  },
+  {
+   "id": "OCR00707",
+   "game": "Secret of Mana",
+   "title": "Wandering the Wild Forest",
+   "artists": [
+    "Thumper"
+   ],
+   "page": "https://ocremix.org/remix/OCR00707",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Secret_of_Mana_Wandering_the_Wild_Forest_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Secret_of_Mana_Wandering_the_Wild_Forest_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Secret_of_Mana_Wandering_the_Wild_Forest_OC_ReMix.mp3"
+   ],
+   "duration": 240,
+   "mp3_size": 3927981,
+   "size": 2302673,
+   "file": "Secret of Mana - Wandering the Wild Forest (OCRemix, Thumper).ogg"
+  },
+  {
+   "id": "OCR02122",
+   "game": "Sonic the Hedgehog 2",
+   "title": "Above the Sky",
+   "artists": [
+    "WillRock"
+   ],
+   "page": "https://ocremix.org/remix/OCR02122",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Sonic_the_Hedgehog_2_Above_the_Sky_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Sonic_the_Hedgehog_2_Above_the_Sky_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Sonic_the_Hedgehog_2_Above_the_Sky_OC_ReMix.mp3"
+   ],
+   "duration": 185,
+   "mp3_size": 4532497,
+   "size": 1647859,
+   "file": "Sonic the Hedgehog 2 - Above the Sky (OCRemix, WillRock).ogg"
+  },
+  {
+   "id": "OCR03691",
+   "game": "Sonic the Hedgehog 3",
+   "title": "Aquapump",
+   "artists": [
+    "PirateCrab"
+   ],
+   "page": "https://ocremix.org/remix/OCR03691",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Sonic_the_Hedgehog_3_Aquapump_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Sonic_the_Hedgehog_3_Aquapump_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Sonic_the_Hedgehog_3_Aquapump_OC_ReMix.mp3"
+   ],
+   "duration": 205,
+   "mp3_size": 6212824,
+   "size": 2443863,
+   "file": "Sonic the Hedgehog 3 - Aquapump (OCRemix, PirateCrab).ogg"
+  },
+  {
+   "id": "OCR01083",
+   "game": "Star Fox",
+   "title": "Space Cowboys",
+   "artists": [
+    "bLiNd"
+   ],
+   "page": "https://ocremix.org/remix/OCR01083",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Star_Fox_Space_Cowboys_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Star_Fox_Space_Cowboys_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Star_Fox_Space_Cowboys_OC_ReMix.mp3"
+   ],
+   "duration": 264,
+   "mp3_size": 5368103,
+   "size": 3370979,
+   "file": "Star Fox - Space Cowboys (OCRemix, bLiNd).ogg"
+  },
+  {
+   "id": "OCR02461",
+   "game": "Star Fox 64",
+   "title": "Star King",
+   "artists": [
+    "DaMonz"
+   ],
+   "page": "https://ocremix.org/remix/OCR02461",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Star_Fox_64_Star_King_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Star_Fox_64_Star_King_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Star_Fox_64_Star_King_OC_ReMix.mp3"
+   ],
+   "duration": 267,
+   "mp3_size": 6499108,
+   "size": 3073526,
+   "file": "Star Fox 64 - Star King (OCRemix, DaMonz).ogg"
+  },
+  {
+   "id": "OCR03517",
+   "game": "Street Fighter II: The World Warrior",
+   "title": "Chun-Li's Theme (Funky Flute Mix)",
+   "artists": [
+    "mlho7"
+   ],
+   "page": "https://ocremix.org/remix/OCR03517",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Street_Fighter_2_Chun-Li's_Theme_(Funky_Flute_Mix)_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Street_Fighter_2_Chun-Li's_Theme_(Funky_Flute_Mix)_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Street_Fighter_2_Chun-Li's_Theme_(Funky_Flute_Mix)_OC_ReMix.mp3"
+   ],
+   "duration": 219,
+   "mp3_size": 6352582,
+   "size": 2482982,
+   "file": "Street Fighter II - The World Warrior - Chun-Lis Theme (Funky Flute Mix) (OCRemix, mlho7).ogg"
+  },
+  {
+   "id": "OCR00886",
+   "game": "Streets of Rage 2",
+   "title": "Ending Theme (Reflecting Mix)",
+   "artists": [
+    "Rayza"
+   ],
+   "page": "https://ocremix.org/remix/OCR00886",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Streets_of_Rage_2_Ending_Theme_(Reflecting_Mix)_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Streets_of_Rage_2_Ending_Theme_(Reflecting_Mix)_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Streets_of_Rage_2_Ending_Theme_(Reflecting_Mix)_OC_ReMix.mp3"
+   ],
+   "duration": 257,
+   "mp3_size": 5222695,
+   "size": 2992326,
+   "file": "Streets of Rage 2 - Ending Theme (Reflecting Mix) (OCRemix, Rayza).ogg"
+  },
+  {
+   "id": "OCR03278",
+   "game": "Super Castlevania IV",
+   "title": "Ripples",
+   "artists": [
+    "Pete Lepley"
+   ],
+   "page": "https://ocremix.org/remix/OCR03278",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Super_Castlevania_4_Ripples_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Super_Castlevania_4_Ripples_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Super_Castlevania_4_Ripples_OC_ReMix.mp3"
+   ],
+   "duration": 316,
+   "mp3_size": 9769167,
+   "size": 3787820,
+   "file": "Super Castlevania IV - Ripples (OCRemix, Pete Lepley).ogg"
+  },
+  {
+   "id": "OCR03970",
+   "game": "Super Mario Bros.",
+   "title": "Reflecting Pool",
+   "artists": [
+    "JohnStacy"
+   ],
+   "page": "https://ocremix.org/remix/OCR03970",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Super_Mario_Bros_Reflecting_Pool_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Super_Mario_Bros_Reflecting_Pool_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Super_Mario_Bros_Reflecting_Pool_OC_ReMix.mp3"
+   ],
+   "duration": 201,
+   "mp3_size": 4926003,
+   "size": 1879835,
+   "file": "Super Mario Bros. - Reflecting Pool (OCRemix, JohnStacy).ogg"
+  },
+  {
+   "id": "OCR00865",
+   "game": "Super Mario Bros. 3",
+   "title": "aquacadence",
+   "artists": [
+    "analoq"
+   ],
+   "page": "https://ocremix.org/remix/OCR00865",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Super_Mario_Bros_3_aquacadence_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Super_Mario_Bros_3_aquacadence_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Super_Mario_Bros_3_aquacadence_OC_ReMix.mp3"
+   ],
+   "duration": 275,
+   "mp3_size": 5574865,
+   "size": 2961041,
+   "file": "Super Mario Bros. 3 - aquacadence (OCRemix, analoq).ogg"
+  },
+  {
+   "id": "OCR01147",
+   "game": "Super Mario World",
+   "title": "Super Mariocean",
+   "artists": [
+    "spacepony"
+   ],
+   "page": "https://ocremix.org/remix/OCR01147",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Super_Mario_World_Super_Mariocean_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Super_Mario_World_Super_Mariocean_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Super_Mario_World_Super_Mariocean_OC_ReMix.mp3"
+   ],
+   "duration": 229,
+   "mp3_size": 4673440,
+   "size": 2625379,
+   "file": "Super Mario World - Super Mariocean (OCRemix, spacepony).ogg"
+  },
+  {
+   "id": "OCR01869",
+   "game": "Super Metroid",
+   "title": "Lonely Petals",
+   "artists": [
+    "DrumUltimA"
+   ],
+   "page": "https://ocremix.org/remix/OCR01869",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Super_Metroid_Lonely_Petals_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Super_Metroid_Lonely_Petals_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Super_Metroid_Lonely_Petals_OC_ReMix.mp3"
+   ],
+   "duration": 306,
+   "mp3_size": 4983340,
+   "size": 2139056,
+   "file": "Super Metroid - Lonely Petals (OCRemix, DrumUltimA).ogg"
+  },
+  {
+   "id": "OCR01861",
+   "game": "The Legend of Zelda: A Link to the Past",
+   "title": "Sacred Flute",
+   "artists": [
+    "Blue.Nocturne"
+   ],
+   "page": "https://ocremix.org/remix/OCR01861",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Legend_of_Zelda_A_Link_to_the_Past_Sacred_Flute_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Legend_of_Zelda_A_Link_to_the_Past_Sacred_Flute_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Legend_of_Zelda_A_Link_to_the_Past_Sacred_Flute_OC_ReMix.mp3"
+   ],
+   "duration": 208,
+   "mp3_size": 4241339,
+   "size": 2424030,
+   "file": "The Legend of Zelda - A Link to the Past - Sacred Flute (OCRemix, Blue.Nocturne).ogg"
+  },
+  {
+   "id": "OCR02951",
+   "game": "The Legend of Zelda: Link's Awakening",
+   "title": "Melodies of Mabe Village",
+   "artists": [
+    "Sauraen"
+   ],
+   "page": "https://ocremix.org/remix/OCR02951",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Legend_of_Zelda_Link's_Awakening_Melodies_of_Mabe_Village_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Legend_of_Zelda_Link's_Awakening_Melodies_of_Mabe_Village_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Legend_of_Zelda_Link's_Awakening_Melodies_of_Mabe_Village_OC_ReMix.mp3"
+   ],
+   "duration": 328,
+   "mp3_size": 7969443,
+   "size": 3840625,
+   "file": "The Legend of Zelda - Links Awakening - Melodies of Mabe Village (OCRemix, Sauraen).ogg"
+  },
+  {
+   "id": "OCR04985",
+   "game": "The Legend of Zelda: Majora's Mask",
+   "title": "Clock Capital",
+   "artists": [
+    "Peach"
+   ],
+   "page": "https://ocremix.org/remix/OCR04985",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Legend_of_Zelda_Majora's_Mask_Clock_Capital_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Legend_of_Zelda_Majora's_Mask_Clock_Capital_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Legend_of_Zelda_Majora's_Mask_Clock_Capital_OC_ReMix.mp3"
+   ],
+   "duration": 181,
+   "mp3_size": 5226069,
+   "size": 2090277,
+   "file": "The Legend of Zelda - Majoras Mask - Clock Capital (OCRemix, Peach).ogg"
+  },
+  {
+   "id": "OCR03469",
+   "game": "The Legend of Zelda: Ocarina of Time",
+   "title": "Afternoon in the Sacred Forest Meadow",
+   "artists": [
+    "Doc Nano"
+   ],
+   "page": "https://ocremix.org/remix/OCR03469",
+   "mp3": [
+    "https://ocrmirror.org/files/music/remixes/Legend_of_Zelda_Ocarina_of_Time_Afternoon_in_the_Sacred_Forest_Meadow_OC_ReMix.mp3",
+    "https://iterations.org/files/music/remixes/Legend_of_Zelda_Ocarina_of_Time_Afternoon_in_the_Sacred_Forest_Meadow_OC_ReMix.mp3",
+    "https://ocr.blueblue.fr/files/music/remixes/Legend_of_Zelda_Ocarina_of_Time_Afternoon_in_the_Sacred_Forest_Meadow_OC_ReMix.mp3"
+   ],
+   "duration": 196,
+   "mp3_size": 4789758,
+   "size": 1963166,
+   "file": "The Legend of Zelda - Ocarina of Time - Afternoon in the Sacred Forest Meadow (OCRemix, Doc Nano).ogg"
+  }
+ ]
+}
