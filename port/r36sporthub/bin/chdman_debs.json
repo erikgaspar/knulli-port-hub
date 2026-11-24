@@ -1,0 +1,24 @@
+{
+  "about": "Pacotes oficiais do Debian 12 (bookworm, arm64) usados para instalar o chdman no Knulli. SHA256 conferidos com dists/bookworm/main/binary-arm64/Packages.xz.",
+  "source": "Debian 12 (bookworm) - deb.debian.org",
+  "chdman_version": "0.251",
+  "bin": "usr/bin/chdman",
+  "debs": [
+    {
+      "package": "mame-tools",
+      "version": "0.251+dfsg.1-1",
+      "url": "https://deb.debian.org/debian/pool/main/m/mame/mame-tools_0.251+dfsg.1-1_arm64.deb",
+      "size": 1029968,
+      "sha256": "9b0391738fc7b7c026917a4cd08eb49f9f6b0f125ff50659037e3d7e97b3220a",
+      "take": ["usr/bin/chdman"]
+    },
+    {
+      "package": "libutf8proc2",
+      "version": "2.8.0-1",
+      "url": "https://deb.debian.org/debian/pool/main/u/utf8proc/libutf8proc2_2.8.0-1_arm64.deb",
+      "size": 60560,
+      "sha256": "065442709e6eb6953cb30ce8c0a7d96cb7fc9e635e33dc1c069c91f8ccee4713",
+      "take": ["usr/lib/aarch64-linux-gnu/libutf8proc.so.2"]
+    }
+  ]
+}
