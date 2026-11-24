@@ -46,6 +46,8 @@ C.TAGLINE = L("Ports de jogos e utilit√°rios para o console R36S, criados por f√
 -- o codigo do hub fica em outro repositorio, privado. Link "raw". O ultimo baixado fica em
 -- cache para uso sem internet. Pode ser trocado por <pasta do app>/catalog_url.txt.
 C.CATALOG_URL = "https://raw.githubusercontent.com/liralflsti-wq/r36s-port-hub-catalogo/main/ports.json"
+-- Knulli Port Hub: catalogo extra (situacao no RG35XXH + ports a mais), somado ao oficial
+C.EXTRA_CATALOG_URL = C.KNULLI and "https://raw.githubusercontent.com/erikgaspar/knulli-port-hub/main/knulli-catalog.json" or ""
 
 -- Central de Conteudo > BIOS do Sistema: pacote de BIOS (link direto do arquivo).
 -- Link oficial do projeto. Pode ser trocado em <pasta do app>/bios_url.txt

@@ -14,6 +14,7 @@
 --  As funcoes daqui rodam dentro de threads/wifi_thread.lua (podem demorar).
 -- =============================================================================
 local U = require("lib.util")
+local C = require("config")
 
 local W = {}
 
@@ -270,6 +271,15 @@ end
 function W.radio(on)
   local out, code = nmrun("radio wifi " .. (on and "on" or "off"))
   return code == 0, U.trim(out)
+end
+
+-- Knulli: sem NetworkManager; mesmas funcoes (mesmo formato) pelo connman e
+-- pelas vagas wifi.* do knulli.conf (core/knulli_net.lua)
+if C.KNULLI then
+  local KW = require("core.knulli_net").wifi
+  for _, k in ipairs({ "status", "scan", "saved", "connect", "reconnect", "disconnect", "forget", "radio" }) do
+    W[k] = KW[k]
+  end
 end
 
 return W

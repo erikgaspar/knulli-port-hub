@@ -15,6 +15,7 @@
 --  As funcoes que mudam algo rodam em threads/datetime_thread.lua.
 -- =============================================================================
 local U = require("lib.util")
+local C = require("config")
 
 local D = {}
 
@@ -245,6 +246,122 @@ function D.set_time(y, mo, d, h, mi, s)
   -- grava tambem no relogio de hardware, se existir (sem timedatectl ninguem faz isso)
   if U.exec_ok("test -e /dev/rtc0") and has("hwclock") then admin("hwclock -w") end
   return true
+end
+
+-- =============================================================================
+--  Knulli (base Batocera): sem systemd/timedatectl/sudo; o hub roda como root.
+--   * fuso: "knulli-timezone set <zona>" grava system.timezone no knulli.conf
+--     (vale depois de reiniciar: o /etc/init.d/S26system aplica no boot) e
+--     "knulli-config tz <zona>" aplica agora (/etc/localtime + /etc/timezone),
+--     o mesmo que o S26system faz;
+--   * sincronizacao: o ntpd (ntp.org 4.2.8) roda como servico (/etc/init.d/S49ntp,
+--     sempre iniciado no boot, servidores do /etc/ntp.conf). "Sincronizar agora"
+--     para o servico, roda "ntpd -q -g -n" (acerta uma vez e sai) e religa;
+--   * relogio de hardware em UTC (/etc/init.d/S34hwclock): grava com "hwclock -w -u".
+-- =============================================================================
+if C.KNULLI then
+  local NTP_INIT = "/etc/init.d/S49ntp"
+
+  local function ntpd_running() return U.exec_ok("pidof ntpd >/dev/null 2>&1") end
+
+  --- o kernel considera o relogio sincronizado? (adjtimex somente leitura)
+  local function kernel_synced()
+    local okf, ffi = pcall(require, "ffi")
+    if not okf then return nil end
+    pcall(ffi.cdef, "int adjtimex(void *buf);")
+    local buf = ffi.new("uint8_t[512]")        -- struct timex com modes = 0 (so le)
+    local okc, r = pcall(function() return ffi.C.adjtimex(buf) end)
+    if not okc or r < 0 then return nil end
+    return r ~= 5                                -- 5 = TIME_ERROR (nao sincronizado)
+  end
+
+  local function rtc_write()
+    if U.exec_ok("test -e /dev/rtc0") and has("hwclock") then
+      run("hwclock -w -u --noadjfile || hwclock -w -u")
+    end
+  end
+
+  function D.status()
+    local st = { now = os.time(), knulli = true, timedatectl = false, systemd = false }
+    local z = U.trim((run("knulli-timezone get")))
+    if valid_name(z) then st.zone = z; st.source = "knulli.conf" end
+    if not st.zone then
+      local l = U.trim(U.capture("readlink -f /etc/localtime 2>/dev/null") or "")
+      st.zone = l:match("/zoneinfo/(.+)$")
+      st.source = "/etc/localtime"
+    end
+    if U.exec_ok("test -e /sys/class/rtc/rtc0") then
+      st.rtc = U.trim(U.read_file("/sys/class/rtc/rtc0/name") or "")
+      if st.rtc == "" then st.rtc = "rtc0" end
+    end
+    st.tools = {}
+    if has("ntpd") then st.tools[1] = "ntpd" end
+    st.ntp = ntpd_running()
+    if st.ntp then st.service = "ntpd" end
+    st.synced = st.ntp and kernel_synced() or false
+    local conf = U.read_file("/etc/ntp.conf") or ""
+    local srv = conf:match("\n?%s*server%s+(%S+)") or conf:match("\n?%s*pool%s+(%S+)")
+    if srv then st.server = srv end
+    st.can_set_tz = U.exec_ok("test -d " .. U.shq(D.ZONEINFO))
+    st.can_ntp = #st.tools > 0 and U.exec_ok("test -x " .. NTP_INIT)
+    st.can_auto = st.can_ntp
+    st.can_sync = #st.tools > 0
+    return st
+  end
+
+  function D.set_timezone(z)
+    if not D.valid_zone(z) then return false, "invalid" end
+    local out, code = run("knulli-timezone set " .. U.shq(z))
+    if code ~= 0 then return false, out ~= "" and out or "knulli-timezone" end
+    -- aplica agora, como o S26system no boot
+    out, code = run("knulli-config tz " .. U.shq(z))
+    if code ~= 0 or not U.trim(U.capture("readlink -f /etc/localtime 2>/dev/null") or ""):find("/" .. z, 1, true) then
+      out, code = run("ln -sf " .. U.shq(D.ZONEINFO .. "/" .. z) .. " /etc/localtime && echo " .. U.shq(z) .. " > /etc/timezone")
+      if code ~= 0 then return false, out end
+    end
+    return true
+  end
+
+  --- liga/desliga o servico ntpd (o Knulli sempre o inicia de novo no boot)
+  function D.set_ntp(on)
+    if not U.exec_ok("test -x " .. NTP_INIT) then return false, "unsupported" end
+    local out = run(NTP_INIT .. " " .. (on and "start" or "stop"))
+    if ntpd_running() == (on and true or false) then return true end
+    return false, U.trim(out)
+  end
+
+  --- acerta o relogio uma vez pela internet (ate 30 s) e religa o servico
+  function D.sync_now(progress)
+    if not has("ntpd") then return false, "nosync" end
+    if progress then progress(1, 30) end
+    local was = ntpd_running()
+    if was then run(NTP_INIT .. " stop") end
+    local out, code = run("timeout 30 ntpd -q -g -n")
+    if was then run(NTP_INIT .. " start") end
+    if code == 0 then
+      rtc_write()
+      return true, D.status()
+    end
+    if code == 124 then return false, "timeout" end
+    return false, (U.trim(out) ~= "" and U.trim(out) or "ntpd")
+  end
+
+  --- data e hora manual (hora LOCAL). Para o ntpd antes, senao ele desfaz o ajuste.
+  function D.set_time(y, mo, d, h, mi, s)
+    local function ok(n, a, b) return type(n) == "number" and n == math.floor(n) and n >= a and n <= b end
+    if not (ok(y, 2000, 2099) and ok(mo, 1, 12) and ok(d, 1, 31) and ok(h, 0, 23) and ok(mi, 0, 59) and ok(s, 0, 59)) then
+      return false, "invalid"
+    end
+    if ntpd_running() then
+      local ok2, why = D.set_ntp(false)
+      if not ok2 then return false, why end
+    end
+    local txt = string.format("%04d-%02d-%02d %02d:%02d:%02d", y, mo, d, h, mi, s)
+    local out, code = run("date -s " .. U.shq(txt))
+    if code ~= 0 then return false, out end
+    rtc_write()
+    return true
+  end
 end
 
 return D

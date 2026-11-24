@@ -201,7 +201,7 @@ local network = {
         return w.connected and (w.connection or "") or L("não conectado")
       end,
       on_a = function() App.push("wifi") end },
-    { kind = "info", label = L("Rede Wi-Fi"), desc = L("Nome da rede Wi-Fi conectada, informado pelo NetworkManager."),
+    { kind = "info", label = L("Rede Wi-Fi"), desc = C.KNULLI and L("Nome da rede Wi-Fi conectada, informado pelo connman do Knulli.") or L("Nome da rede Wi-Fi conectada, informado pelo NetworkManager."),
       value = function(scr)
         local w = scr.wst
         if not w then return L("Verificando...") end
@@ -213,7 +213,12 @@ local network = {
         local iface = (scr.wst and scr.wst.iface) or (st and st.iface)
         if not (st and st.connected and st.wireless) then return "—" end
         local now = love.timer.getTime()
-        if not scr.sig_t or now - scr.sig_t > 3 then scr.sig_t = now; scr.sig = Net.signal(iface) end
+        if not scr.sig_t or now - scr.sig_t > 3 then
+          scr.sig_t = now
+          -- Knulli: o estado do Wi-Fi ja traz o sinal (evita chamar o connmanctl de novo)
+          local ws = scr.wst and scr.wst.signal
+          if C.KNULLI and ws then scr.sig = type(ws) == "table" and ws or { quality = ws } else scr.sig = Net.signal(iface) end
+        end
         local s = scr.sig
         return s and (s.quality .. "%" .. (s.dbm and string.format("  (%d dBm)", s.dbm) or "")) or L("Não disponível")
       end },
@@ -716,7 +721,7 @@ D.LIST = {
 if C.KNULLI then
   local HIDE = {}
   for _, k in ipairs({ "Temas do EmulationStation", "Brilho da tela", "Ajustes do console (R36 Control)",
-      "Gerenciar Wi-Fi", "Data e hora", "Analisador de Console", "Gerenciar PortMaster", "Atualizar runtimes",
+      "Analisador de Console", "Gerenciar PortMaster", "Atualizar runtimes",
       "Otimizador e manutenção do microSD", "Verificador do cartão SD", "Atualização via rede",
       "Aviso de nova versão do hub", "Testar analógicos e botões", "Teste completo com relatório",
       "Todos os testes de controles", "Último relatório" }) do HIDE[L(k)] = true end

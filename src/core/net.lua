@@ -7,6 +7,7 @@
 --  Interfaces sem fio: /sys/class/net/<if>/wireless. Loopback (127.x) nunca conta.
 -- =============================================================================
 local U = require("lib.util")
+local C = require("config")
 
 local N = { last = nil, time = -1 }
 
@@ -182,6 +183,11 @@ end
 
 --- nome da rede Wi-Fi. Tenta varias ferramentas; nil se nenhuma informar
 function N.ssid(iface)
+  if C.KNULLI then
+    -- Knulli: o connman sabe a rede em uso (iwgetid/iw nao informam neste driver)
+    local s = require("core.knulli_net").current()
+    if s and s.name and s.name ~= "" then return s.name, "connmanctl" end
+  end
   local tries = {
     "iwgetid -r",
     "iw dev " .. U.shq(iface or "wlan0") .. " link | sed -n 's/^[[:space:]]*SSID: //p'",
@@ -205,6 +211,12 @@ local function valid_dbm(d) return d and d < 0 and d > -110 end
 --- sinal do Wi-Fi: /proc/net/wireless; se o driver informar valor invalido
 --- (o 8188eu mostra 0 e -256 dBm), tenta "iw" e depois o NetworkManager
 function N.signal(iface)
+  if C.KNULLI then
+    -- Knulli: sem /proc/net/wireless e o "iw link" diz "Not connected"; usa a
+    -- intensidade (0-100) informada pelo connman
+    local q = require("core.knulli_net").signal()
+    if q then return { quality = math.max(0, math.min(100, q)) } end
+  end
   local txt = U.read_file("/proc/net/wireless") or ""
   for line in txt:gmatch("[^\n]+") do
     local name, rest = line:match("^%s*([%w%._%-]+):%s*(.*)$")

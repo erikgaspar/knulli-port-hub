@@ -11,6 +11,7 @@ local U = require("lib.util")
 local Icons = require("ui.icons")
 local J = require("core.wifijob")
 local Net = require("core.net")
+local C = require("config")
 local lg = love.graphics
 
 local S = {}
@@ -177,8 +178,9 @@ function S:draw()
     return
   end
   if st.nm_running == false then
-    self:draw_unavailable(L("GERENCIADOR DE REDE PARADO"),
-      L("O NetworkManager está instalado, mas não está em execução. Ative o Wi-Fi pela opção \"Wifi Toggle\" do sistema e volte aqui."))
+    self:draw_unavailable(L("GERENCIADOR DE REDE PARADO"), C.KNULLI
+      and L("O gerenciador de rede do Knulli (connman) não está em execução. Ative o Wi-Fi nas configurações de rede do Knulli e volte aqui.")
+      or L("O NetworkManager está instalado, mas não está em execução. Ative o Wi-Fi pela opção \"Wifi Toggle\" do sistema e volte aqui."))
     G.hints({ { "b", L("Voltar") } })
     return
   end
@@ -206,9 +208,13 @@ function S:draw()
     G.text(T.f.pix8, lbl, sx - 30, sy + 7, T.c.red)
   end
   local line
-  if not st.iface then line, lbl = L("Adaptador Wi-Fi não encontrado. Conecte o adaptador USB e ative-o pelo \"Wifi Toggle\" do sistema."), T.c.red
+  if not st.iface then
+    line = C.KNULLI and L("Adaptador Wi-Fi não encontrado.")
+      or L("Adaptador Wi-Fi não encontrado. Conecte o adaptador USB e ative-o pelo \"Wifi Toggle\" do sistema.")
+    lbl = T.c.red
   elseif st.connected then
-    local sig = Net.signal(st.iface)
+    -- Knulli: o sinal ja vem no estado (connman); nada de comando a cada quadro
+    local sig = st.signal and { quality = st.signal } or Net.signal(st.iface)
     line = L("Conectado a ") .. (st.connection or "?") .. "  •  IP " .. st.ip
       .. (sig and ("  •  " .. L("sinal ") .. sig.quality .. "%") or "") .. "  •  " .. st.iface
     lbl = T.c.green
@@ -310,7 +316,8 @@ function S:open_saved(s)
   end }
   btns[#btns + 1] = { label = L("VOLTAR") }
   App.show_dialog({ title = s.ssid, kind = "info",
-    body = (s.active and L("Rede conectada agora.") or L("Rede salva.")) .. "\n" .. L("A senha fica guardada pelo NetworkManager do sistema e não é exibida."),
+    body = (s.active and L("Rede conectada agora.") or L("Rede salva.")) .. "\n" .. (C.KNULLI and L("A senha fica guardada nas configurações do Knulli e não é exibida.")
+      or L("A senha fica guardada pelo NetworkManager do sistema e não é exibida.")),
     buttons = btns })
 end
 

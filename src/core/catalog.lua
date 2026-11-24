@@ -127,6 +127,12 @@ local function normalize_port(raw, idx, cat_names)
   p.cover = build_url(raw, { "cover", "cover_url", "capa", "image" })
   p.sha256 = str(raw.sha256):lower()
   p.md5 = str(raw.md5):lower()
+  -- Knulli Port Hub: situacao no RG35XXH (catalogo extra)
+  if type(raw.h700) == "table" then
+    local st = str(raw.h700.status)
+    p.h700 = { status = (st == "pesado" or st == "nao_funciona") and st or "testado",
+      note = str(raw.h700.note or raw.h700.nota), tested_on = str(raw.h700.tested_on) }
+  end
 
   p.install_check = {}
   if type(raw.install_check) == "table" then
@@ -152,6 +158,7 @@ function Catalog.parse(text)
     list = data.ports or data.games or data.jogos
   end
   if type(list) ~= "table" then return nil, L("o catálogo não tem a lista \"ports\"") end
+  if Catalog._merge_extra then list = Catalog._merge_extra(list) end
 
   local cat_names, cat_order = {}, {}
   if type(meta.categories) == "table" then
@@ -237,6 +244,77 @@ local function apply(res, source)
   U.log(string.format("catalogo carregado (%s): %d ports, %d categorias", source, #res.ports, #res.categories))
 end
 
+
+-- ---------------------------------------------------------------------------
+-- Knulli Port Hub: catalogo extra (C.EXTRA_CATALOG_URL), somado ao oficial.
+-- Formato: { "ports": [ { "id": "<id do catalogo oficial>", "h700": {...} },
+--                       { "id": "novo", "name": ..., "download_url": ..., "h700": {...} } ] }
+--   h700 = { "status": "testado" | "pesado" | "nao_funciona", "note": "texto",
+--              "tested_on": "RG35XXH / Knulli 2026-05" }
+-- Itens com o mesmo id do oficial so acrescentam "h700" (e o que vier em
+-- "override"); itens novos com download_url entram como ports normais.
+local EXTRA_CACHE = "catalog_extra_cache.json"
+Catalog.extra = nil
+
+local function merge_extra(list)
+  local ex = Catalog.extra
+  if not (C.KNULLI and type(ex) == "table" and type(ex.ports) == "table") then return list end
+  local idx = {}
+  for i, raw in ipairs(list) do
+    if type(raw) == "table" then
+      local id = str(raw.id or raw.identificador)
+      if id == "" then id = U.slug(str(raw.name or raw.nome or raw.title)) end
+      idx[id] = i
+    end
+  end
+  for _, e in ipairs(ex.ports) do
+    if type(e) == "table" and e.id then
+      local i = idx[str(e.id)]
+      if i then
+        local raw = list[i]
+        if type(e.h700) == "table" then raw.h700 = e.h700 end
+        if type(e.override) == "table" then for k, v in pairs(e.override) do raw[k] = v end end
+      elseif e.download_url or e.url or e.download then
+        list[#list + 1] = e
+      end
+    end
+  end
+  return list
+end
+Catalog._merge_extra = merge_extra
+
+--- Le o catalogo extra (texto JSON); true se valido
+function Catalog.set_extra(text, save)
+  local ok, data = pcall(json.decode, text or "")
+  if not ok or type(data) ~= "table" or type(data.ports) ~= "table" then return false end
+  Catalog.extra = data
+  if save then pcall(love.filesystem.write, EXTRA_CACHE, text) end
+  return true
+end
+
+--- Carrega o extra guardado (cache baixado ou o que vem dentro do app)
+function Catalog.load_extra_local()
+  if not C.KNULLI then return end
+  local t = love.filesystem.read(EXTRA_CACHE)
+  if not (t and Catalog.set_extra(t)) then
+    t = love.filesystem.read("catalog/knulli_extra.json")
+    if t then Catalog.set_extra(t) end
+  end
+end
+
+--- Resultado do download do extra: guarda e reaplica o catalogo atual
+function Catalog.on_extra(ok, path)
+  if not ok then return false end
+  local text = U.read_file(path); os.remove(path)
+  if not Catalog.set_extra(text, true) then return false end
+  local base = love.filesystem.read(CACHE_FILE) or U.read_file(C.APP_DIR .. "/catalog.json")
+  if base then
+    local res = Catalog.parse(base)
+    if res then apply(res, Catalog.source ~= "none" and Catalog.source or "cache") end
+  end
+  return true
+end
+
 --- URL do catalogo online (config.lua ou catalog_url.txt)
 function Catalog.get_remote_url()
   local s = U.read_file(C.APP_DIR .. "/catalog_url.txt")
@@ -250,6 +328,7 @@ end
 
 --- Carrega a melhor fonte local disponivel (sem rede)
 function Catalog.load_local()
+  Catalog.load_extra_local()
   Catalog.remote_url = Catalog.get_remote_url()
   local tries = {}
   if Catalog.remote_url then

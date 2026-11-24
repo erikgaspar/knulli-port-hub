@@ -108,14 +108,15 @@ end
 function S:toggle_auto()
   local st = self.st
   if not st then return end
-  if not st.timedatectl then App.toast(self:why("notool"), "warn"); return end
+  if not (st.timedatectl or st.knulli) then App.toast(self:why("notool"), "warn"); return end
   if not st.can_auto and not st.ntp then App.toast(self:why("unsupported"), "warn"); return end
   local on = not st.ntp
   App.show_dialog({
     title = on and L("Ativar sincronização?") or L("Desativar sincronização?"),
     kind = "info",
     body = on and L("O serviço de horário do próprio sistema passa a acertar a data e a hora pela internet (NTP) sempre que houver conexão. Sem internet, o horário atual é mantido.")
-      or L("O sistema para de acertar o relógio pela internet. A data e a hora atuais são mantidas, e você pode ajustá-las manualmente."),
+      or (st.knulli and L("O sistema para de acertar o relógio pela internet até o console ser reiniciado (no Knulli, a sincronização volta sozinha ao ligar). A data e a hora atuais são mantidas.")
+      or L("O sistema para de acertar o relógio pela internet. A data e a hora atuais são mantidas, e você pode ajustá-las manualmente.")),
     buttons = {
       { label = on and L("ATIVAR") or L("DESATIVAR"), fn = function()
         self:job("set_ntp", { on = on }, function(m)
@@ -226,7 +227,7 @@ function S:draw()
     local label, value, vcol = "", "", T.c.text
     if r == "auto" then
       label = L("Sincronização automática (internet)")
-      if not st.timedatectl and self.st then value, vcol = L("INDISPONÍVEL"), T.c.dim
+      if not (st.timedatectl or st.knulli) and self.st then value, vcol = L("INDISPONÍVEL"), T.c.dim
       elseif self.st and not st.can_auto and not st.ntp then value, vcol = L("INDISPONÍVEL"), T.c.dim
       else value, vcol = st.ntp and L("ATIVADA") or L("DESATIVADA"), st.ntp and T.c.green or T.c.dim end
     elseif r == "sync" then

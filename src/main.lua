@@ -146,6 +146,13 @@ end
 --- Os ports instalados sao preservados: o registro de instalados nao e tocado.
 function App.refresh_catalog(user_initiated, on_done)
   if user_initiated then Manifest.rescan(true) end
+  -- Knulli Port Hub: catalogo extra em paralelo (situacao no RG35XXH + ports a mais)
+  if C.KNULLI and C.EXTRA_CATALOG_URL ~= "" then
+    local out2 = love.filesystem.getSaveDirectory() .. "/catalog_extra_download.json"
+    Fetcher.get("catalog_extra", C.EXTRA_CATALOG_URL, out2, function(ok2, path2)
+      if Catalog.on_extra(ok2, path2 or out2) then App.on_catalog_changed() end
+    end)
+  end
   local url = Catalog.get_remote_url()
   Catalog.remote_url = url
   if not url then
