@@ -225,7 +225,7 @@ while true; do
   fi
 
   # o app pediu para iniciar um port (Detalhes do port > INICIAR). So um script
-  # .sh que existe na raiz da pasta de ports; roda com o ambiente original do
+  # .sh que existe na pasta de ports (raiz ou uma subpasta); roda com o ambiente original do
   # sistema e, ao sair do jogo, o R36S PORT HUB abre de novo na pagina do port.
   if [ -f "$CONFDIR/.run_port" ]; then
     PORT_REQ=$(head -n 1 "$CONFDIR/.run_port" 2>/dev/null)
@@ -237,16 +237,30 @@ while true; do
     PORT_MODE=""
     case "$PORT_REST" in *"|perf") PORT_MODE=perf ;; esac
     PORTS_ROOT="/$directory/ports"
+    # aceita "App.sh" (raiz de ports) ou "Pasta/App.sh" (um nivel de subpasta,
+    # ex.: apps da Knulli App Store); nada de "..", "/" inicial ou mais niveis
     case "$PORT_SH" in
-      ""|*/*|*..*) PORT_SH="" ;;
+      ""|/*|*..*|*/*/*|./*|*/./*) PORT_SH="" ;;
+      */) PORT_SH="" ;;
       *.sh|*.SH) ;;
       *) PORT_SH="" ;;
+    esac
+    # o arquivo real precisa estar dentro de ports (link para fora = recusa)
+    if [ -n "$PORT_SH" ] && [ -f "$PORTS_ROOT/$PORT_SH" ]; then
+      PH_REAL=$(readlink -f "$PORTS_ROOT/$PORT_SH" 2>/dev/null)
+      PH_ROOT=$(readlink -f "$PORTS_ROOT" 2>/dev/null)
+      case "$PH_REAL" in "$PH_ROOT"/*) ;; *) PORT_SH="" ;; esac
+    fi
+    PORT_SUB=""
+    PORT_FILE="$PORT_SH"
+    case "$PORT_SH" in
+      */*) PORT_SUB=${PORT_SH%/*}; PORT_FILE=${PORT_SH##*/}; PORT_MODE="" ;;
     esac
     if [ -n "$PORT_SH" ] && [ -f "$PORTS_ROOT/$PORT_SH" ]; then
       echo "[launcher] Iniciando port: $PORT_SH"
       sync
       (
-        cd "$PORTS_ROOT" || exit 1
+        cd "$PORTS_ROOT/$PORT_SUB" || exit 1
         unset PORTHUB_DIR PORTHUB_PORTS_DIR PORTHUB_PM_DIR PORTHUB_XDG_ORIG PORTHUB_RETURN
         export XDG_DATA_HOME="$XDG_DATA_HOME_ORIG"
         if [ -n "$PH_LD_SET" ]; then export LD_LIBRARY_PATH="$PH_LD_ORIG"; else unset LD_LIBRARY_PATH; fi
@@ -254,7 +268,7 @@ while true; do
         if [ "$PORT_MODE" = perf ] && [ -f "$GAMEDIR/bin/perf_run.sh" ]; then
           bash "$GAMEDIR/bin/perf_run.sh" "$PORT_SH" "$PORT_ID"
         else
-          bash "./$PORT_SH"
+          bash "./$PORT_FILE"
         fi
       )
       PORT_RC=$?

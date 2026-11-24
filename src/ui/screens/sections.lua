@@ -124,7 +124,7 @@ function S:draw()
       local apps = require("core.kstore").available() and require("core.kstore").list() or nil
       local n = 0
       for _, a in ipairs(apps or {}) do if a.status ~= "none" then n = n + 1 end end
-      label = apps and string.format(L("%d DE %d INSTALADOS"), n, #apps) or L("LOJA NÃO INSTALADA")
+      label = apps and string.format(L("%d DE %d INSTALADOS"), n, #apps) or L("PREPARAR")
       lc = apps and c or pal.faint
     elseif card.id == "bios" then
       label, lc = self:bios_label()

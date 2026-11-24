@@ -118,6 +118,7 @@ local function st(self)
     -- Apps do Knulli: cartoes da Knulli App Store (vazio = loja nao instalada)
     local items, err, inst = require("ui.premium.kapp").items()
     s.items, s.apps_err, s.apps_inst = items or {}, err, inst or 0
+    if err == "missing" then require("core.kstore").peek() end
     s.sel = U.clamp(s.sel, 1, math.max(1, #s.items))
     s.chips, s.grid_y = {}, GRID_Y
   elseif t.kind ~= "grid" then
@@ -334,7 +335,7 @@ local function open_info(id)
     local n = 0
     for _, a in ipairs(apps or {}) do if a.status ~= "none" then n = n + 1 end end
     return L("Apps do Knulli"), L("Apps da Knulli App Store (comunidade): instalar, atualizar e remover."),
-      apps and string.format(PS.tr(L("%d de %d instalados")), n, #apps) or L("Loja não instalada"), "store"
+      apps and string.format(PS.tr(L("%d de %d instalados")), n, #apps) or L("Preparar os Apps do Knulli"), "store"
   end
   local okb, label = pcall(function() return require("ui.screens.sections").bios_label({}) end)
   return L("BIOS do Sistema"), L("Downloads, verificação e instalação de BIOS para emuladores."),
@@ -427,15 +428,42 @@ local function draw_apps_empty(self, s)
   local tf, df, uf = PS.font("b", 15), PS.font("r", 12), PS.font("m", 13)
   y = y + 72
   if s.apps_err == "missing" then
-    PS.fit(tf, L("Knulli App Store não instalada"), 20, y, 600, c.text, "center")
-    local body = PS.tr(L("Os apps do Knulli vêm da Knulli App Store, uma loja da comunidade. Instale a loja pelo site do projeto e os apps aparecem aqui, com instalação e atualização pelo hub."))
+    -- sem a loja e sem a copia do hub: "Preparar os Apps do Knulli" (baixa o
+    -- instalador + lista oficial da release do GitHub, mostrando o tamanho)
+    PS.fit(tf, L("Preparar os Apps do Knulli"), 20, y, 600, c.text, "center")
+    local body = PS.tr(L("Os apps do Knulli vêm da Knulli App Store, uma loja da comunidade. O hub baixa só o instalador e a lista oficial de apps (sem instalar a loja em Ports) e cuida da instalação e das atualizações."))
     local ls = PS.lines(df, body, 480, 3)
     for i, l in ipairs(ls) do PS.fit(df, l, 80, y + 28 + (i - 1) * 18, 480, c.dim2, "center") end
-    local uy = y + 28 + #ls * 18 + 14
-    local url = K.REPO:gsub("^https?://", "")
-    local uw = uf:getWidth(url) + 28
-    PS.rect(320 - uw / 2, uy, uw, 28, c.surf, 14)
-    PS.text(uf, url, 320 - uf:getWidth(url) / 2, uy + 14 - uf:getHeight() / 2, c.accent)
+    local by = y + 28 + #ls * 18 + 14
+    local bw, bh = 320, 40
+    local bx = 320 - bw / 2
+    if K.job then
+      -- andamento do download (bytes) ou barra indeterminada
+      PS.rect(bx, by, bw, bh, c.surf2, 12)
+      local d, tot = K.progress()
+      local G = require("ui.gfx")
+      G.clip(bx, by, bw, bh)
+      if d and tot and tot > 0 then
+        PS.rect(bx, by + bh - 4, bw * math.min(1, d / tot), 4, c.accent, 2)
+      else
+        local seg = bw * 0.3
+        PS.rect(bx - seg + (bw + seg) * ((App.t or 0) * 0.8 % 1), by + bh - 4, seg, 4, c.accent, 2)
+      end
+      G.unclip()
+      local lbl = PS.tr(L("Baixando…"))
+      if d and tot and tot > 0 then lbl = lbl .. "  " .. U.format_bytes(d) .. " / " .. U.format_bytes(tot) end
+      PS.fit(uf, lbl, bx + 14, by + bh / 2 - uf:getHeight() / 2 - 1, bw - 28, c.text, "center")
+    else
+      PS.rect(bx, by, bw, bh, c.accent, 12)
+      local lbl = PS.tr(L("Preparar")) .. "  •  " .. require("ui.kstore_ui").size_label()
+      local bf = PS.font("b", 14, true)
+      local gw = 20 + 10 + bf:getWidth(lbl)
+      local gx = bx + (bw - gw) / 2
+      PS.glyph("a", gx, by + bh / 2 - 10, 20, true)
+      PS.text(bf, lbl, gx + 30, by + bh / 2 - bf:getHeight() / 2, c.bg)
+    end
+    local url = PS.tr(L("Fonte: ")) .. K.REPO:gsub("^https?://", "")
+    PS.fit(df, url, 20, by + bh + 12, 600, c.dim, "center")
   else
     PS.fit(tf, L("Nenhum app na lista da Knulli App Store."), 20, y, 600, c.text, "center")
     if s.apps_err and s.apps_err ~= "" then PS.fit(df, s.apps_err, 20, y + 28, 600, c.dim, "center") end
@@ -468,8 +496,10 @@ function PC.draw(self)
   if s.sheet then require("ui.premium.filtersheet").draw(s.sheet); return end
   local hints = { { "a", L("Abrir") }, { "b", L("Voltar") }, { { "l1", "r1" }, L("Abas") }, { "y", L("Buscar") } }
   if t.kind == "apps" then
-    if #s.items == 0 then table.remove(hints, 1) else hints[1] = { "a", L("Detalhes") } end
-    if require("core.kstore").available() then hints[#hints + 1] = { "x", L("Loja completa") } end
+    if #s.items > 0 then hints[1] = { "a", L("Detalhes") }
+    elseif s.apps_err == "missing" and not require("core.kstore").job then hints[1] = { "a", L("Preparar") }
+    else table.remove(hints, 1) end
+    if require("core.kstore").store_installed() then hints[#hints + 1] = { "x", L("Loja completa") } end
   end
   if t.kind == "grid" then
     hints[#hints + 1] = { "x", L("Filtros") }
@@ -572,14 +602,18 @@ function PC.action(self, act)
   if t.kind == "apps" then
     local n = #s.items
     if act == "x" then
-      if require("core.kstore").available() then require("ui.kstore_ui").open_store() end
+      if require("core.kstore").store_installed() then require("ui.kstore_ui").open_store() end
     elseif act == "up" or act == "down" or act == "left" or act == "right" then
       local sel, out = PG.move(s.sel, n, act, metrics(s).cols)
       s.sel = sel
       if out == "up" or (n == 0 and act == "up") then s.zone = "band" end
     elseif act == "a" then
       local it = s.items[s.sel]
-      if it and it.app then require("ui.premium.kapp").open(it.app) end
+      if it and it.app then require("ui.premium.kapp").open(it.app)
+      elseif n == 0 and s.apps_err == "missing" then
+        -- sem loja e sem a copia do hub: baixa o instalador + lista oficial
+        require("ui.kstore_ui").prepare(s, function() PC.invalidate(self) end)
+      end
     end
     return
   end

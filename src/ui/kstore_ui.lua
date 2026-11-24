@@ -55,11 +55,16 @@ end
 --- executa a acao pelo instalador da loja; scr.loading mostra o andamento (a
 --- tela desenha). on_done(ok) e chamado no fim (padrao: refaz a lista)
 local function run(scr, app, action, on_done)
+  if K.job then
+    App.toast(L("Aguarde: a lista dos Apps do Knulli está sendo atualizada."), "info"); return
+  end
   local cmd, err = K.command(app, action)
   if not cmd then App.show_dialog({ title = L("Não foi possível começar"), kind = "error", body = tostring(err) }); return end
   local verb = ({ install = L("Instalando "), update = L("Atualizando "), repair = L("Reparando "), uninstall = L("Removendo ") })[action]
   scr.loading = I18N.tr(verb) .. app.name .. "..."
+  K.running = K.running + 1
   require("core.shjob").start({ cmd }, function(res, terr)
+    K.running = math.max(0, K.running - 1)
     scr.loading = nil
     local r = res and res[1]
     local ok = r and r.rc == 0
@@ -92,19 +97,56 @@ end
 
 M.run, M.confirm = run, confirm
 
---- abre a Knulli App Store completa (o hub fecha e reabre depois)
+--- abre a Knulli App Store completa (o hub fecha e reabre depois). Sem a loja
+--- instalada em ports: explica (o hub usa a propria copia do instalador)
 function M.open_store()
-  if not U.file_size(C.PORTS_DIR .. "/" .. K.SCRIPT) then
-    App.toast(L("O atalho da Knulli App Store não está na pasta de ports."), "warn"); return
+  if not K.store_installed() then
+    App.show_dialog({ title = L("Knulli App Store não instalada"), kind = "info",
+      body = L("Os Apps do Knulli funcionam pelo hub sem a loja instalada: o hub usa a própria cópia do instalador e da lista oficial.\n\nPara usar a interface completa da loja, instale-a pelo site do projeto:\n") .. K.REPO })
+    return
   end
   App.launch_port({ id = "knulli-app-store", name = "Knulli App Store", script_override = K.SCRIPT })
 end
 
+--- texto do tamanho do download da copia ("17,3 MB" ou "~18 MB")
+function M.size_label()
+  local n, exact = K.download_size()
+  return (exact and "" or "~") .. U.format_bytes(n)
+end
+
+--- baixa a copia do hub (instalador + lista assinada da release oficial).
+--- scr.preparing mostra o andamento (a tela desenha). on_done(ok) no fim.
+function M.prepare(scr, on_done, skip_confirm)
+  if K.job then App.toast(L("Os Apps do Knulli já estão sendo preparados."), "info"); return end
+  local function go()
+    if K.job then App.toast(L("Os Apps do Knulli já estão sendo preparados."), "info"); return end
+    if scr then scr.preparing = true else App.toast(L("Baixando os Apps do Knulli..."), "info") end
+    K.fetch("update", function(ok, info, err)
+      if scr then scr.preparing = nil end
+      K.invalidate()
+      if ok and K.available() then
+        App.toast(string.format(I18N.tr(L("Apps do Knulli prontos (%s)")), tostring(info.tag or "?")), "ok")
+      else
+        App.show_dialog({ title = L("Não foi possível preparar os Apps do Knulli"), kind = "error",
+          body = tostring(err or "?") .. "\n\n" .. L("Confira a conexão com a internet e tente de novo. Nada foi alterado.") })
+      end
+      if on_done then on_done(ok) end
+    end)
+  end
+  if skip_confirm then go(); return end
+  App.show_dialog({ title = L("Preparar os Apps do Knulli?"), kind = "info",
+    body = string.format(I18N.tr(L("O hub baixa a versão mais nova da Knulli App Store (projeto da comunidade, GitHub oficial) e guarda só o instalador e a lista de apps assinada, da mesma versão.\n\nDownload: %s (o pacote traz a interface da loja, que é descartada).\nPasta: %s (não aparece no menu).")),
+      M.size_label(), K.HUB_DIR),
+    buttons = { { label = L("BAIXAR"), fn = go }, { label = L("CANCELAR") } } })
+end
+
 function M.open()
   if not K.available() then
-    App.show_dialog({ title = L("Knulli App Store não instalada"), kind = "info",
-      body = L("Os apps do Knulli vêm da Knulli App Store (comunidade). Instale-a pelo site do projeto:\n") .. K.REPO
-        .. L("\n\nDepois de instalada, os apps aparecem aqui.") })
+    K.peek()
+    App.show_dialog({ title = L("Preparar os Apps do Knulli"), kind = "info",
+      body = L("Os apps do Knulli vêm da Knulli App Store (comunidade). O hub pode baixar o instalador e a lista oficial de apps, sem instalar a loja em Ports.\n\nDownload: ") .. M.size_label(),
+      buttons = { { label = L("PREPARAR"), fn = function() M.prepare(nil, function(ok) if ok then M.open() end end, true) end },
+        { label = L("CANCELAR") } } })
     return
   end
   App.push("infolist", { title = L("Apps do Knulli"), sub = "", reload_on_resume = true,

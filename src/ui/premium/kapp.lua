@@ -9,6 +9,8 @@
 --  instalacao e as notas da revisao.
 --  Instalar/atualizar/reparar/remover usam as confirmacoes e a execucao de
 --  ui/kstore_ui.lua (instalador da propria loja); nada e duplicado aqui.
+--  "Abrir": apps instalados cujo launcher e um .sh dentro de ports (raiz ou
+--  uma subpasta, ex.: RandomGamePicker/RandomGamePicker.sh).
 --    direcional: botoes | B (acao "a"): confirmar | Y (acao "x"): opcoes
 --    A (acao "b"): voltar | L1/R1: rolar as notas
 -- =============================================================================
@@ -65,20 +67,35 @@ function KA.menu_system(gamelist)
   return nice[d] or U.upper(d)
 end
 
---- script .sh que o app criou na raiz da pasta de ports (o launcher do hub so
---- abre scripts dali); nil quando o app nao pode ser aberto pelo hub
+--- caminho relativo aceito pelo launcher do hub: "App.sh" ou "Pasta/App.sh"
+--- (um nivel de subpasta dentro de ports, sem "..", sem "/" inicial, so .sh)
+function KA.safe_rel(n)
+  n = tostring(n or "")
+  if n == "" or n:find("%.%.") or n:sub(1, 1) == "/" or not n:lower():match("%.sh$") then return nil end
+  if n:find("/") and not n:match("^[^/]+/[^/]+$") then return nil end
+  if n:match("^%./") then return nil end
+  return n
+end
+
+--- script .sh que o app declarou como launcher dentro da pasta de ports (na
+--- raiz ou em uma subpasta: o launcher do hub entra na pasta do script antes de
+--- rodar); nil quando o app nao pode ser aberto pelo hub
 function KA.launch_script(a)
   if not a or a.status == "none" then return nil end
   local ins = (a.pkg and a.pkg.install) or {}
   local cands = {}
   local menu = type(ins.menu) == "table" and ins.menu or nil
   if menu and menu.gamelist and same_dir(dirname(menu.gamelist), C.PORTS_DIR) then
-    cands[#cands + 1] = tostring(menu.path or ""):match("^%./([^/]+)$")
+    cands[#cands + 1] = tostring(menu.path or ""):match("^%./(.+)$")
   end
-  if ins.destination and same_dir(ins.destination, C.PORTS_DIR) then cands[#cands + 1] = tostring(ins.launcher or "") end
+  local dest, la = ins.destination, tostring(ins.launcher or "")
+  if dest and la ~= "" and not la:find("/") then
+    if same_dir(dest, C.PORTS_DIR) then cands[#cands + 1] = la
+    elseif same_dir(dirname(dest), C.PORTS_DIR) then cands[#cands + 1] = basename(dest) .. "/" .. la end
+  end
   for _, n in ipairs(cands) do
-    if n and n ~= "" and not n:find("/") and not n:find("%.%.") and n:lower():match("%.sh$")
-      and U.file_size(C.PORTS_DIR .. "/" .. n) then return n end
+    n = KA.safe_rel(n)
+    if n and U.file_size(C.PORTS_DIR .. "/" .. n) then return n end
   end
   return nil
 end
@@ -541,8 +558,11 @@ function KA:options()
     btns[#btns + 1] = { label = L("Remover"), danger = true,
       fn = function() KU.confirm(self, a, "uninstall", done(self)) end }
   end
-  btns[#btns + 1] = { label = L("Abrir a Knulli App Store completa"), sub = L("O hub fecha e abre de novo ao sair da loja"),
-    fn = function() KU.open_store() end }
+  -- so com a loja instalada em ports (sem ela o hub usa a propria copia do instalador)
+  if K.store_installed() then
+    btns[#btns + 1] = { label = L("Abrir a Knulli App Store completa"), sub = L("O hub fecha e abre de novo ao sair da loja"),
+      fn = function() KU.open_store() end }
+  end
   btns[#btns + 1] = { label = L("Voltar") }
   App.show_dialog({ title = a.name, kind = "info", list = true, body = L("O que você quer fazer?"), buttons = btns })
 end

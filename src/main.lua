@@ -166,6 +166,12 @@ function App.refresh_catalog(user_initiated, on_done)
       if okc and changed then Manifest.invalidate(); App.on_catalog_changed() end
     end)
   end
+  -- Knulli Port Hub: lista dos Apps do Knulli (copia do hub da release oficial
+  -- da Knulli App Store): procura release nova no maximo 1x a cada 12 h
+  if C.KNULLI then
+    local okk, kerr = pcall(function() require("core.kstore").auto_check(user_initiated) end)
+    if not okk then U.log("Apps do Knulli: verificação falhou:", tostring(kerr)) end
+  end
   local url = Catalog.get_remote_url()
   Catalog.remote_url = url
   if not url then
@@ -765,7 +771,13 @@ end
 --- script .sh do port instalado (na raiz da pasta de ports), ou nil
 function App.port_script(p)
   -- atalho direto para um script conhecido (ex.: Knulli App Store)
-  if p and p.script_override then return U.exists(C.PORTS_DIR .. "/" .. p.script_override) and p.script_override or nil end
+  -- (na raiz de ports ou em uma subpasta: "Pasta/App.sh"; o launcher confere de novo)
+  if p and p.script_override then
+    local s = tostring(p.script_override)
+    if s:find("%.%.") or s:sub(1, 1) == "/" or not s:lower():match("%.sh$") then return nil end
+    if s:find("/") and not s:match("^[^/]+/[^/]+$") then return nil end
+    return U.file_size(C.PORTS_DIR .. "/" .. s) and s or nil
+  end
   if not p or p.builtin or App.status(p) == "none" then return nil end
   for _, n in ipairs(Manifest.found(p) or {}) do
     n = tostring(n)
