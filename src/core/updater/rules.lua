@@ -9,7 +9,8 @@ local json = require("lib.json")
 local M = {}
 
 M.MANIFEST = "update_manifest.json"
-M.LAUNCHER = "R36S PORT HUB.sh"
+-- Knulli Port Hub: o iniciador tem outro nome
+M.LAUNCHER = os.getenv("PORTHUB_FW") == "knulli" and "Knulli Port Hub.sh" or "R36S PORT HUB.sh"
 M.APP = "r36sporthub"
 --- itens do hub que guardam dados do usuario: nunca vem de um pacote
 M.PROTECTED = { conf = true, tmp = true, logs = true, gravacoes = true, update = true, backups = true,

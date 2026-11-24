@@ -27,7 +27,8 @@ Notas da versao (aparecem no hub antes de instalar e na primeira abertura):
 import hashlib, json, os, re, sys, zipfile, datetime, argparse, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LAUNCHER = "R36S PORT HUB.sh"
+KNULLI = os.environ.get("PORTHUB_FIRMWARE") == "knulli"   # pacote do Knulli Port Hub
+LAUNCHER = "Knulli Port Hub.sh" if KNULLI else "R36S PORT HUB.sh"
 APP = "r36sporthub"
 PROTECTED = {"conf", "tmp", "logs", "gravacoes", "update", "backups", "bios", "bios_url.txt", "catalog.json",
              "catalog_url.txt", "update_url.txt", "log.txt"}
@@ -35,6 +36,10 @@ PROTECTED = {"conf", "tmp", "logs", "gravacoes", "update", "backups", "bios", "b
 
 def version():
     src = open(os.path.join(ROOT, "src", "config.lua"), encoding="utf-8").read()
+    if KNULLI:
+        num = re.search(r'C\.KNULLI_VERSION_NUM\s*=\s*"([^"]+)"', src).group(1)
+        lab = re.search(r'C\.KNULLI_VERSION\s*=\s*"([^"]+)"', src).group(1)
+        return num, lab
     num = re.search(r'C\.VERSION_NUM\s*=\s*"([^"]+)"', src).group(1)
     lab = re.search(r'C\.VERSION\s*=\s*L\("([^"]+)"\)', src).group(1)
     return num, lab
@@ -73,7 +78,7 @@ def manifest(ports, files, kind, vmin=None, vmax=None, desc="", changes=None, fi
     num, lab = version()
     m = {
         "format": 1,
-        "name": "R36S PORT HUB",
+        "name": "Knulli Port Hub" if KNULLI else "R36S PORT HUB",
         "type": kind,
         "version": num,
         "version_label": lab,
@@ -82,6 +87,8 @@ def manifest(ports, files, kind, vmin=None, vmax=None, desc="", changes=None, fi
         "files": [{"path": p, "size": os.path.getsize(os.path.join(ports, p)),
                    "sha256": sha256(os.path.join(ports, p))} for p in files],
     }
+    if KNULLI:
+        m["firmware"] = "knulli"
     if changes:
         m["changes"] = changes
     if fixes:

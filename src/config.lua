@@ -18,7 +18,10 @@ C.OS_VERSION = os.getenv("R36HUBOS_VERSION") or ""
 -- Esconde o que e do dArkOS (Wi-Fi, temas, R36 Control, PortMaster, microSD...),
 -- recarrega a lista de jogos pela API do EmulationStation e usa /userdata/bios.
 C.KNULLI = os.getenv("PORTHUB_FW") == "knulli"
-if C.KNULLI then C.VERSION = L("0.5.4 BETA · Knulli") end
+-- versao propria do Knulli Port Hub (atualizacoes pelo repositorio erikgaspar/knulli-port-hub)
+C.KNULLI_VERSION_NUM = "0.5.4.1"
+C.KNULLI_VERSION = "0.5.4 BETA · Knulli 1"
+if C.KNULLI then C.VERSION_NUM = C.KNULLI_VERSION_NUM; C.VERSION = L(C.KNULLI_VERSION) end
 
 -- Atualizacao do sistema (Configuracoes > Atualizacao do sistema).
 -- Link direto do pacote .zip (o hub le o update_manifest.json de dentro dele:
@@ -27,8 +30,8 @@ if C.KNULLI then C.VERSION = L("0.5.4 BETA · Knulli") end
 -- { "version", "url", "sha256", "notes" }.
 -- Tambem pode ser definido em <pasta do app>/update_url.txt (sobrescreve este).
 C.UPDATE_URL = "https://github.com/liralflsti-wq/r36s-port-hub-catalogo/releases/latest/download/R36S-PORT-HUB-update.zip"
--- Knulli: a atualizacao oficial e a versao do R36S (sobrescreveria as adaptacoes)
-if C.KNULLI then C.UPDATE_URL = "" end
+-- Knulli: atualiza pelo repositorio do Knulli Port Hub (a oficial e a do R36S)
+if C.KNULLI then C.UPDATE_URL = "https://github.com/erikgaspar/knulli-port-hub/releases/latest/download/Knulli-Port-Hub-update.zip" end
 
 -- Catalogo de temas (Configuracoes > Temas > Baixar novos temas). Vazio ate o
 -- repositorio de temas ser publicado. Tambem pode ser definido em

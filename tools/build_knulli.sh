@@ -1,6 +1,8 @@
 #!/bin/bash
-# Gera o pacote do Knulli Port Hub: build/knulli/ports/ + build/Knulli-Port-Hub.zip
-# Usa zip ou, no Windows (Git Bash), o 7-Zip.
+# Gera o pacote do Knulli Port Hub:
+#   build/Knulli-Port-Hub.zip          (instalacao completa, com update_manifest.json)
+#   build/Knulli-Port-Hub-update.zip   (o mesmo pacote, nome usado pela atualizacao via rede)
+# Precisa de zip e python3 (roda no proprio console Knulli ou num Linux).
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT="$ROOT/build/knulli"
@@ -10,13 +12,10 @@ cp "$ROOT/port/R36S PORT HUB.sh" "$OUT/ports/Knulli Port Hub.sh"
 # imagens do Knulli no lugar das do R36S (capa/marquee/fanart da lista de Ports)
 cp "$ROOT/port/r36sporthub/knulli/"*.png "$OUT/ports/r36sporthub/"
 rm -rf "$OUT/ports/r36sporthub/knulli"
-SEVENZ="/c/Program Files/7-Zip/7z.exe"
-mkzip() { # mkzip ARQUIVO DIR [excluir]
-  if command -v zip >/dev/null 2>&1; then (cd "$2" && zip -q -9 -r "$1" . ${3:+-x "$3"})
-  else (cd "$2" && "$SEVENZ" a -tzip -mx=9 "$1" . ${3:+-xr!"$3"} >/dev/null); fi
-}
-mkzip "$OUT/ports/r36sporthub/game.love" "$ROOT/src" "dev"
+(cd "$ROOT/src" && zip -q -9 -n .ogg -r "$OUT/ports/r36sporthub/game.love" . -x 'dev/*')
 chmod +x "$OUT/ports/Knulli Port Hub.sh" "$OUT/ports/r36sporthub/bin/"*.sh "$OUT/ports/r36sporthub/tools/"*.sh 2>/dev/null || true
-rm -f "$ROOT/build/Knulli-Port-Hub.zip"
-mkzip "$ROOT/build/Knulli-Port-Hub.zip" "$OUT/ports"
+PORTHUB_FIRMWARE=knulli python3 "$ROOT/tools/make_update.py" full "$OUT/ports"
+rm -f "$ROOT/build/Knulli-Port-Hub.zip" "$ROOT/build/Knulli-Port-Hub-update.zip"
+(cd "$OUT/ports" && zip -q -9 -r "$ROOT/build/Knulli-Port-Hub.zip" "Knulli Port Hub.sh" r36sporthub update_manifest.json)
+cp "$ROOT/build/Knulli-Port-Hub.zip" "$ROOT/build/Knulli-Port-Hub-update.zip"
 echo "Pacote: $ROOT/build/Knulli-Port-Hub.zip"

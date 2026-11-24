@@ -720,9 +720,9 @@ D.LIST = {
 -- menu ou o hub mexeria em coisas do sistema). Compara pelo rotulo traduzido.
 if C.KNULLI then
   local HIDE = {}
-  for _, k in ipairs({ "Temas do EmulationStation", "Gerenciar PortMaster", "Atualizar runtimes",
-      "Otimizador e manutenção do microSD", "Verificador do cartão SD", "Atualização via rede",
-      "Aviso de nova versão do hub" }) do HIDE[L(k)] = true end
+  -- todas as funcoes do original ja foram adaptadas ao Knulli; a lista fica para
+  -- esconder algo no futuro, se preciso
+  for _, k in ipairs({}) do HIDE[L(k)] = true end
   local function keep(rows)
     local out = {}
     for _, r in ipairs(rows or {}) do if not HIDE[r.label] then out[#out + 1] = r end end
