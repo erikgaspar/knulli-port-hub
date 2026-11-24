@@ -224,13 +224,16 @@ function F.sort(list, mode)
     elseif mode == "size_desc" then k = -(tonumber(p.size) or -1)
     elseif mode == "tested" then k = H_ORDER[p.h700 and p.h700.status or ""] or 2
     else k = 0 end
-    key[p] = { k, nk, i }
+    -- catalogo do autor sempre antes; PortMaster sempre no fim (em qualquer ordenacao)
+    local grp = (p.source == "portmaster") and 1 or 0
+    key[p] = { grp, k, nk, i }
   end
   table.sort(list, function(a, b)
     local ka, kb = key[a], key[b]
     if ka[1] ~= kb[1] then return ka[1] < kb[1] end
     if ka[2] ~= kb[2] then return ka[2] < kb[2] end
-    return ka[3] < kb[3]
+    if ka[3] ~= kb[3] then return ka[3] < kb[3] end
+    return ka[4] < kb[4]
   end)
   return list
 end
