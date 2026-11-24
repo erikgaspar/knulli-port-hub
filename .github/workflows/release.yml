@@ -1,0 +1,58 @@
+# Knulli Port Hub: publica uma versao nova sozinho a cada mudanca no codigo.
+# Push no main que mexe em src/, port/ ou tools/ -> monta o pacote, numera a
+# versao (base do config.lua + numero da execucao) e cria a Release com
+# Knulli-Port-Hub.zip e Knulli-Port-Hub-update.zip. O app ve a versao nova
+# ao abrir e mostra o aviso "Nova versao disponivel" (SELECT atualiza).
+# Mudancas so nos catalogos (knulli-catalog.json, knulli-translations.json)
+# nao geram versao: o app ja baixa esses arquivos sozinho.
+name: Publicar versao
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "port/**"
+      - "tools/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Numero da versao
+        id: ver
+        run: |
+          BASE=$(sed -n 's/^C\.KNULLI_VERSION_NUM = "\([0-9.]*\)".*/\1/p' src/config.lua | head -1)
+          VER="${BASE}.${GITHUB_RUN_NUMBER}"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          # so na copia usada para montar o pacote (o repositorio nao muda)
+          sed -i "s/^C\.KNULLI_VERSION_NUM = \"[0-9.]*\"/C.KNULLI_VERSION_NUM = \"$VER\"/" src/config.lua
+          sed -i "s/^C\.KNULLI_VERSION = \"[^\"]*\"/C.KNULLI_VERSION = \"$VER BETA · Knulli Premium\"/" src/config.lua
+          grep -n "KNULLI_VERSION" src/config.lua | head -2
+
+      - name: Montar o pacote
+        run: |
+          sudo apt-get install -y zip >/dev/null 2>&1 || true
+          bash tools/build_knulli.sh
+          ls -la build/*.zip
+
+      - name: Publicar a Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VER: ${{ steps.ver.outputs.ver }}
+        run: |
+          MSG=$(git log -1 --pretty=%B | head -c 1500)
+          printf 'Versão gerada automaticamente a partir do commit %s.\n\n%s\n' "${GITHUB_SHA:0:7}" "$MSG" > notes.md
+          gh release create "v$VER" build/Knulli-Port-Hub.zip build/Knulli-Port-Hub-update.zip \
+            --title "Knulli Port Hub $VER" --notes-file notes.md --latest
