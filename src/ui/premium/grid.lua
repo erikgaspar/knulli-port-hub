@@ -66,7 +66,7 @@ function PG.draw(st, m, o)
         PS.cover_badges(p, bx, by, bw, bh)
         if k > 0 then PS.focus(bx, by, bw, bh, 10, k) end
         PS.fit(m.nf, p.name or "", x, y + PG.COVER_H + PG.NAME_GAP + (k > 0 and 1 or 0), m.cw, on and c.text or c.dim2)
-      elseif row == last and p and not p.builtin then
+      elseif row == last and p and not p.builtin and not p.card_tags then
         -- linha logo abaixo da area visivel: ja pede a capa ao cache
         require("core.covers").get(p)
       end
@@ -85,6 +85,9 @@ end
 
 --- um cartao largo: imagem/icone a esquerda, nome (2 linhas), descricao curta
 --- (2 linhas) e etiquetas (integrado ao hub / PortMaster / tamanho / instalado)
+--- Campos opcionais do item (ex.: Apps do Knulli): card_img (imagem pronta),
+--- card_icon (id de ui/icons no quadro) e card_tags ({ {texto, cor}, ... } no
+--- lugar das etiquetas padrao)
 function PG.draw_card(p, x, y, m, k, on, o)
   local c = PS.c()
   local L = require("lib.i18n").L
@@ -92,7 +95,18 @@ function PG.draw_card(p, x, y, m, k, on, o)
   PS.rect(bx, by, bw, bh, on and c.surf2 or c.surf, 12)
   -- imagem: icone da ferramenta (integrada) ou capa recortada em quadrado
   local isz = bh - 20
-  PS.cover(p, bx + 10, by + 10, isz, isz, 10, on and c.surf2 or c.surf)
+  local bgc = on and c.surf2 or c.surf
+  if p.card_img then
+    PS.rect(bx + 10, by + 10, isz, isz, c.bg, 10)
+    PS.draw_cover_fit(p.card_img, bx + 10, by + 10, isz, isz)
+    PS.fillet(bx + 10, by + 10, isz, isz, 10, bgc)
+  elseif p.card_icon then
+    PS.rect(bx + 10, by + 10, isz, isz, on and c.line or c.surf2, 10)
+    local s = math.floor(isz * 0.46)
+    require("ui.icons").draw(p.card_icon, bx + 10 + (isz - s) / 2, by + 10 + (isz - s) / 2, c.accent, s / 24)
+  else
+    PS.cover(p, bx + 10, by + 10, isz, isz, 10, bgc)
+  end
   local tx = bx + 10 + isz + 12
   local tw = bx + bw - 12 - tx
   -- nome em ate 2 linhas
@@ -108,14 +122,19 @@ function PG.draw_card(p, x, y, m, k, on, o)
   end
   -- etiquetas no rodape do cartao
   local px, py = tx, by + bh - 9 - 15
-  local tags = {}
-  if p.builtin then tags[#tags + 1] = { L("NO HUB"), c.accent }
-  elseif p.source == "portmaster" then tags[#tags + 1] = { "PORTMASTER", c.dim2 } end
-  if not p.builtin and p.size_label and p.size_label ~= "?" then tags[#tags + 1] = { p.size_label, c.dim } end
-  local st = (not p.builtin) and App and App.status and App.status(p) or "none"
-  if st == "installed" then tags[#tags + 1] = { L("INSTALADO"), c.accent }
-  elseif st == "update" then tags[#tags + 1] = { L("ATUALIZAR"), c.warn } end
-  for _, t in ipairs(tags) do
+  local tags = p.card_tags
+  if not tags then
+    tags = {}
+    if p.builtin then tags[#tags + 1] = { L("NO HUB"), c.accent }
+    elseif p.source == "portmaster" then tags[#tags + 1] = { "PORTMASTER", c.dim2 } end
+    if not p.builtin and p.size_label and p.size_label ~= "?" then tags[#tags + 1] = { p.size_label, c.dim } end
+    local st = (not p.builtin) and App and App.status and App.status(p) or "none"
+    if st == "installed" then tags[#tags + 1] = { L("INSTALADO"), c.accent }
+    elseif st == "update" then tags[#tags + 1] = { L("ATUALIZAR"), c.warn } end
+  end
+  for i, t in ipairs(tags) do
+    -- etiquetas proprias: so desenha a que cabe inteira no cartao
+    if p.card_tags and i > 1 and px + m.tf:getWidth(PS.tr(t[1])) + 12 > bx + bw - 10 then break end
     local w = PS.pill(t[1], px, py, { font = m.tf, bg = c.bg, fg = t[2], px = 6, h = 15 })
     px = px + w + 5
     if px > bx + bw - 30 then break end

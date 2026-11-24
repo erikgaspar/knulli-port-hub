@@ -52,7 +52,9 @@ local function to_items(scr)
   scr.sel = math.min(scr.sel or 1, math.max(1, #items))
 end
 
-local function run(scr, app, action)
+--- executa a acao pelo instalador da loja; scr.loading mostra o andamento (a
+--- tela desenha). on_done(ok) e chamado no fim (padrao: refaz a lista)
+local function run(scr, app, action, on_done)
   local cmd, err = K.command(app, action)
   if not cmd then App.show_dialog({ title = L("Não foi possível começar"), kind = "error", body = tostring(err) }); return end
   local verb = ({ install = L("Instalando "), update = L("Atualizando "), repair = L("Reparando "), uninstall = L("Removendo ") })[action]
@@ -61,7 +63,8 @@ local function run(scr, app, action)
     scr.loading = nil
     local r = res and res[1]
     local ok = r and r.rc == 0
-    to_items(scr)
+    K.invalidate()
+    if on_done then on_done(ok) else to_items(scr) end
     if ok then
       App.toast(app.name .. ": " .. I18N.tr(({ install = L("instalado"), update = L("atualizado"), repair = L("reparado"), uninstall = L("removido") })[action]), "ok")
     else
@@ -73,7 +76,7 @@ local function run(scr, app, action)
   end)
 end
 
-local function confirm(scr, app, action)
+local function confirm(scr, app, action, on_done)
   local titles = { install = L("Instalar app?"), update = L("Atualizar app?"), repair = L("Reparar app?"), uninstall = L("Remover app?") }
   local labels = { install = L("INSTALAR"), update = L("ATUALIZAR"), repair = L("REPARAR"), uninstall = L("REMOVER") }
   local body = app.name .. "  (v" .. app.version .. ")\n" .. app.summary
@@ -83,9 +86,11 @@ local function confirm(scr, app, action)
     body = body .. "\n\n" .. L("Todos os apps da Knulli App Store são experimentais. Precisa de internet; a instalação é feita pelo instalador da própria loja.")
   end
   App.show_dialog({ title = titles[action], kind = action == "uninstall" and "warn" or "info", body = body,
-    buttons = { { label = labels[action], danger = action == "uninstall", fn = function() run(scr, app, action) end },
+    buttons = { { label = labels[action], danger = action == "uninstall", fn = function() run(scr, app, action, on_done) end },
       { label = L("CANCELAR") } }, sel = action == "uninstall" and 2 or 1 })
 end
+
+M.run, M.confirm = run, confirm
 
 --- abre a Knulli App Store completa (o hub fecha e reabre depois)
 function M.open_store()

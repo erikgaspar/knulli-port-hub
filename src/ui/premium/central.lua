@@ -1,8 +1,9 @@
 -- =============================================================================
 --  Tema Premium: Central (tela "sections")
 --  Faixa EM DESTAQUE (112 px) com arte de fundo, abas em pilulas (L1/R1) e
---  grade de capas em 6 colunas. Abas "Apps do Knulli" e "BIOS" abrem as telas
---  proprias (um cartao grande explica e abre com B).
+--  grade de capas em 6 colunas. Aba "Apps do Knulli": cartoes largos com os
+--  apps da Knulli App Store (ui/premium/kapp.lua abre a pagina de cada um).
+--  Aba "BIOS" abre a tela propria (um cartao grande explica e abre com B).
 --  Abas de grade (Jogos, Utilitarios) tem filtros e ordenacao proprios
 --  (core/portfilter.lua, lembrados em Prefs por aba): com algum ativo aparece
 --  uma faixa de pilulas entre as abas e a grade.
@@ -35,7 +36,7 @@ local JUMP_T = 0.6
 
 local function tabs()
   local t = { { id = "games", label = L("Jogos"), kind = "grid" } }
-  if C.KNULLI then t[#t + 1] = { id = "kstore", label = L("Apps do Knulli"), kind = "open" } end
+  if C.KNULLI then t[#t + 1] = { id = "kstore", label = L("Apps do Knulli"), kind = "apps" } end
   t[#t + 1] = { id = "bios", label = L("BIOS"), kind = "open" }
   t[#t + 1] = { id = "tools", label = L("Utilitários"), kind = "grid" }
   return t
@@ -113,6 +114,12 @@ local function st(self)
     s.chip = U.clamp(s.chip or 1, 1, math.max(1, #s.chips))
     s.grid_y = #s.chips > 0 and (GRID_Y + STRIP_H) or GRID_Y
     if s.zone == "chips" and #s.chips == 0 then s.zone = "grid" end
+  elseif t.kind == "apps" and not s.items then
+    -- Apps do Knulli: cartoes da Knulli App Store (vazio = loja nao instalada)
+    local items, err, inst = require("ui.premium.kapp").items()
+    s.items, s.apps_err, s.apps_inst = items or {}, err, inst or 0
+    s.sel = U.clamp(s.sel, 1, math.max(1, #s.items))
+    s.chips, s.grid_y = {}, GRID_Y
   elseif t.kind ~= "grid" then
     s.chips, s.grid_y = {}, GRID_Y
   end
@@ -124,16 +131,16 @@ function PC.invalidate(self)
   if self.pc then self.pc.tabs = nil; self.pc.items = nil; self.pc.oinfo = nil end
 end
 
--- aba Utilitarios: cartoes largos (ferramentas sem capa e com nome longo)
+-- abas Utilitarios e Apps do Knulli: cartoes largos (itens sem capa e com nome longo)
 local function metrics(s)
   local t = s.tabs and s.tabs[s.tab]
-  return PG.metrics(20, s.grid_y or GRID_Y, 600, PS.FOOT_Y - 6, t and t.id == "tools")
+  return PG.metrics(20, s.grid_y or GRID_Y, 600, PS.FOOT_Y - 6, t and (t.id == "tools" or t.kind == "apps"))
 end
 
 function PC.update(self, dt)
   local s = st(self)
   local t = s.tabs[s.tab]
-  if t.kind == "grid" then
+  if t.kind == "grid" or t.kind == "apps" then
     PG.update(s, #s.items, s.sel, metrics(s), dt)
   end
   if s.sheet then require("ui.premium.filtersheet").update(s.sheet, dt) end
@@ -231,6 +238,13 @@ local function draw_tabs(self, s)
     x = x + w + 8
   end
   local t = s.tabs[s.tab]
+  if t.kind == "apps" and #s.items > 0 then
+    -- Apps do Knulli: "N apps • X instalados" a direita
+    local cf = PS.font("r", 12, true)
+    local txt = string.format(PS.tr(L("%d apps  •  %d instalados")), #s.items, s.apps_inst or 0)
+    local tw = cf:getWidth(txt)
+    if 620 - tw > x then PS.text(cf, txt, 620 - tw, TABS_Y + 21 - cf:getHeight() / 2, c.dim) end
+  end
   if t.kind == "grid" then
     -- botao do painel de filtros (com o numero de filtros ligados)
     local rf = PS.font("m", 12, true)
@@ -402,6 +416,32 @@ local function draw_jump(s)
   PS.text(f, j.letter, cx - f:getWidth(j.letter) / 2, cy - f:getHeight() / 2, c.accent, a)
 end
 
+--- aba Apps do Knulli sem apps: loja nao instalada (explica e mostra o
+--- repositorio) ou lista vazia/ilegivel
+local function draw_apps_empty(self, s)
+  local c = PS.c()
+  local K = require("core.kstore")
+  local y = GRID_Y + 22
+  PS.rect(292, y, 56, 56, c.surf, 16)
+  require("ui.icons").draw("store", 304, y + 12, c.accent, 32 / 24)
+  local tf, df, uf = PS.font("b", 15), PS.font("r", 12), PS.font("m", 13)
+  y = y + 72
+  if s.apps_err == "missing" then
+    PS.fit(tf, L("Knulli App Store não instalada"), 20, y, 600, c.text, "center")
+    local body = PS.tr(L("Os apps do Knulli vêm da Knulli App Store, uma loja da comunidade. Instale a loja pelo site do projeto e os apps aparecem aqui, com instalação e atualização pelo hub."))
+    local ls = PS.lines(df, body, 480, 3)
+    for i, l in ipairs(ls) do PS.fit(df, l, 80, y + 28 + (i - 1) * 18, 480, c.dim2, "center") end
+    local uy = y + 28 + #ls * 18 + 14
+    local url = K.REPO:gsub("^https?://", "")
+    local uw = uf:getWidth(url) + 28
+    PS.rect(320 - uw / 2, uy, uw, 28, c.surf, 14)
+    PS.text(uf, url, 320 - uf:getWidth(url) / 2, uy + 14 - uf:getHeight() / 2, c.accent)
+  else
+    PS.fit(tf, L("Nenhum app na lista da Knulli App Store."), 20, y, 600, c.text, "center")
+    if s.apps_err and s.apps_err ~= "" then PS.fit(df, s.apps_err, 20, y + 28, 600, c.dim, "center") end
+  end
+end
+
 function PC.draw(self)
   local s = st(self)
   local c = PS.c()
@@ -416,11 +456,21 @@ function PC.draw(self)
       PG.draw(s, metrics(s), { items = s.items, sel = s.sel, focus = s.zone == "grid" and not s.sheet, key = "pc" .. t.id })
     end
     draw_jump(s)
+  elseif t.kind == "apps" then
+    if #s.items == 0 then
+      draw_apps_empty(self, s)
+    else
+      PG.draw(s, metrics(s), { items = s.items, sel = s.sel, focus = s.zone == "grid", key = "pck" })
+    end
   else
     draw_open(self, s)
   end
   if s.sheet then require("ui.premium.filtersheet").draw(s.sheet); return end
   local hints = { { "a", L("Abrir") }, { "b", L("Voltar") }, { { "l1", "r1" }, L("Abas") }, { "y", L("Buscar") } }
+  if t.kind == "apps" then
+    if #s.items == 0 then table.remove(hints, 1) else hints[1] = { "a", L("Detalhes") } end
+    if require("core.kstore").available() then hints[#hints + 1] = { "x", L("Loja completa") } end
+  end
   if t.kind == "grid" then
     hints[#hints + 1] = { "x", L("Filtros") }
     if s.zone == "chips" then
@@ -516,6 +566,20 @@ function PC.action(self, act)
     elseif act == "left" then PC.feat_go(s, -1)
     elseif act == "right" then PC.feat_go(s, 1)
     elseif act == "a" then if p then App.push("details", { port = p }) end
+    end
+    return
+  end
+  if t.kind == "apps" then
+    local n = #s.items
+    if act == "x" then
+      if require("core.kstore").available() then require("ui.kstore_ui").open_store() end
+    elseif act == "up" or act == "down" or act == "left" or act == "right" then
+      local sel, out = PG.move(s.sel, n, act, metrics(s).cols)
+      s.sel = sel
+      if out == "up" or (n == 0 and act == "up") then s.zone = "band" end
+    elseif act == "a" then
+      local it = s.items[s.sel]
+      if it and it.app then require("ui.premium.kapp").open(it.app) end
     end
     return
   end
