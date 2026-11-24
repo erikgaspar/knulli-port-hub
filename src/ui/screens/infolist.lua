@@ -62,7 +62,8 @@ function S:draw()
   end
   local hints = { { "dpad", L("Navegar") } }
   local cur = self.items[self.sel]
-  if cur and cur.detail and not self.loading then hints[#hints + 1] = { "a", L("Detalhes") } end
+  if cur and cur.on_a and not self.loading then hints[#hints + 1] = { "a", L("Abrir") }
+  elseif cur and cur.detail and not self.loading then hints[#hints + 1] = { "a", L("Detalhes") } end
   for _, k in ipairs(self.p.keys or {}) do
     if not self.loading and (not k.enabled or k.enabled(self)) then hints[#hints + 1] = { k.key, k.label } end
   end
@@ -82,6 +83,8 @@ function S:action(act)
   elseif act == "down" then self.sel = self.sel % n + 1
   elseif act == "a" then
     local it = self.items[self.sel]
+    -- item com acao propria (ex.: menu de ferramentas): A executa
+    if it and it.on_a then it.on_a(self, it); return end
     if it and it.detail then
       App.show_dialog({ title = it.text or self.p.title, kind = "info",
         body = type(it.detail) == "function" and it.detail() or it.detail })

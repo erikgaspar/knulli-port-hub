@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "about": "Cópia embutida mínima do índice de traduções (usada só sem internet e sem cache). As entradas abaixo são EXEMPLOS FALSOS: hashes inventados que não casam com nenhuma ROM real.",
+  "translations": [
+    {
+      "id": "exemplo-falso-snes",
+      "example": true,
+      "system": "snes",
+      "title": "EXEMPLO FALSO (não é uma tradução real)",
+      "lang": "pt-BR",
+      "group": "Exemplo",
+      "version": "0.0",
+      "page_url": "",
+      "patch_url": "https://example.invalid/exemplo-falso.ips",
+      "archive": "none",
+      "patch_file": "",
+      "patch_format": "ips",
+      "rom": { "name": "Exemplo Falso (USA).sfc", "crc32": "00000000", "sha1": "0000000000000000000000000000000000000000", "size": 1, "header": "none" },
+      "result": { "crc32": "00000000" },
+      "status": "exemplo",
+      "notes": "Entrada de exemplo, marcada como falsa. Hashes zerados: nunca casa com uma ROM."
+    }
+  ]
+}
