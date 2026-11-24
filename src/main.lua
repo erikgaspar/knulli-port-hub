@@ -49,7 +49,9 @@ local App = {
 }
 _G.App = App
 
-local SCREEN_NAMES = { "disclaimer", "menu", "store", "categories", "details", "about", "settings", "files", "sections", "search", "downloads", "news", "console", "ftp", "ftp_activity", "ftp_help", "textinput", "sdanalyzer", "integrity", "netdiag", "update", "themes", "sdcheck", "esthemes", "splash", "language", "settings_cat", "tester", "consoleid", "wifi", "wifi_connect", "r36control", "sdmaint", "sdmaint_run", "compat", "datetime", "tzpicker", "datetime_edit", "pmmanager", "streamrec", "recordings", "updmgr", "upd_local", "upd_pkg", "upd_history", "upd_backups", "upd_notes", "bios", "bios_list", "bios_pkg", "bios_hist", "folderpick", "battery", "infolist", "library", "library_games", "textview", "padtest", "pendports" }
+local SCREEN_NAMES = { "disclaimer", "menu", "store", "categories", "details", "about", "settings", "files", "sections", "search", "downloads", "news", "console", "ftp", "ftp_activity", "ftp_help", "textinput", "sdanalyzer", "integrity", "netdiag", "update", "themes", "sdcheck", "esthemes", "splash", "language", "settings_cat", "tester", "consoleid", "wifi", "wifi_connect", "r36control", "sdmaint", "sdmaint_run", "compat", "datetime", "tzpicker", "datetime_edit", "pmmanager", "streamrec", "recordings", "updmgr", "upd_local", "upd_pkg", "upd_history", "upd_backups", "upd_notes", "bios", "bios_list", "bios_pkg", "bios_hist", "folderpick", "battery", "infolist", "library", "library_games", "textview", "padtest", "pendports",
+  -- Knulli Port Hub: telas novas (carregadas so se existirem)
+  "bluetooth", "fullbackup", "monitor" }
 
 ---------------------------------------------------------------------------
 -- Navegacao
@@ -593,7 +595,9 @@ function love.load(args)
   T.load()
   G.build_background()
   local theme_warn = require("core.themes").init()   -- ultimo tema escolhido (ou o padrao)
-  for _, n in ipairs(SCREEN_NAMES) do App.screens[n] = require("ui.screens." .. n) end
+  for _, n in ipairs(SCREEN_NAMES) do
+    if love.filesystem.getInfo("ui/screens/" .. n .. ".lua") then App.screens[n] = require("ui.screens." .. n) end
+  end
   Input.handler = on_action
 
   -- canvas logico 640x480 se a tela tiver outro tamanho (ex.: testes no PC)

@@ -34,6 +34,10 @@ local ITEMS = {
   { id = "about", label = L("Sobre o Projeto"), sub = L("Informações e créditos"), icon = "about" },
   { id = "exit", label = L("Sair"), sub = L("Fechar o R36S PORT HUB"), icon = "exit" },
 }
+-- Knulli Port Hub: ferramentas proprias (biblioteca, desempenho, sistema)
+if C.KNULLI then
+  table.insert(ITEMS, 5, { id = "ktools", label = L("Ferramentas do Knulli"), sub = L("Biblioteca, desempenho, backup e sistema"), icon = "set_tools" })
+end
 if C.OS_MODE then
   ITEMS[#ITEMS] = { id = "exit", label = L("Energia"), sub = L("Desligar, reiniciar ou reabrir a interface"), icon = "exit" }
 end
@@ -195,7 +199,7 @@ function S:draw()
   G.text(T.f.pix8, C.OS_MODE and (C.OS_NAME .. " " .. C.OS_VERSION .. "  •  " .. C.VERSION) or C.VERSION, 28, 86, T.c.faint)
 
   -- 8 itens entre a versao (y 86) e o rodape: passo de 44 px
-  local y0, step = 98, 44
+  local y0, step = 98, (#ITEMS > 8 and 39 or 44)
   for i, it in ipairs(ITEMS) do
     local y = y0 + (i - 1) * step
     local on = i == self.sel
@@ -550,6 +554,7 @@ function S.open(id)
   elseif id == "news" then App.push("news")
   elseif id == "themes" then App.push("themes")
   elseif id == "update" then App.push("update")
+  elseif id == "ktools" then require("ui.ktools_ui").open()
   elseif id == "settings" then App.push("settings")
   elseif id == "about" then App.push("about")
   elseif id == "exit" then exit_dialog()
