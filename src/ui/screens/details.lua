@@ -178,7 +178,12 @@ function S:draw()
   if (p.platform or "") ~= "" then x = x + G.tag(U.upper(p.platform), x, y, T.c.bg3, T.c.text) + 6 end
   if p.version ~= "" then x = x + G.tag("V" .. U.upper(p.version), x, y, T.c.bg3, T.c.text) + 6 end
   if p.size_label ~= "?" then x = x + G.tag(p.size_label, x, y, T.c.bg3, T.c.text) + 6 end
-  if App.status(p) ~= "none" then G.tag(L("INSTALADO"), x, y, T.c.green, T.c.bg0) end
+  if App.status(p) ~= "none" then x = x + G.tag(L("INSTALADO"), x, y, T.c.green, T.c.bg0) + 6 end
+  if p.h700 then
+    local hs = p.h700.status
+    G.tag(hs == "testado" and L("TESTADO NO RG35XXH") or (hs == "pesado" and L("PESADO NO RG35XXH") or L("NÃO RODA NO RG35XXH")),
+      x, y, hs == "testado" and T.c.green or (hs == "pesado" and T.c.yellow or T.c.red), T.c.bg0)
+  end
 
   -- status
   local st = App.status(p)
@@ -471,6 +476,23 @@ function S:action(act)
         kind = "error",
         body = string.format(L("O download precisa de pelo menos %s livres (mais o espaço para extrair).\nLivre agora: %s."),
           U.format_bytes(p.size + C.SPACE_MARGIN), U.format_bytes(App.free)),
+      })
+      return
+    end
+    -- Knulli Port Hub: aviso antes de baixar um port pesado ou que nao funciona no RG35XXH
+    if p.h700 and p.h700.status ~= "testado" and not self.h700_ok then
+      local bad = p.h700.status == "nao_funciona"
+      App.show_dialog({
+        title = bad and L("Não funciona no RG35XXH") or L("Port pesado para o RG35XXH"),
+        kind = bad and "error" or "warn",
+        body = (p.h700.note ~= "" and p.h700.note or (bad and L("Este port foi testado e não roda neste console.")
+          or L("Este port roda, mas com quedas de desempenho neste console.")))
+          .. L("\n\nQuer baixar mesmo assim?"),
+        buttons = {
+          { label = L("BAIXAR"), fn = function() self.h700_ok = true; self:action("a") end },
+          { label = L("CANCELAR") },
+        },
+        sel = 2,
       })
       return
     end

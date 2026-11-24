@@ -1,0 +1,28 @@
+{
+  "catalog_version": 1,
+  "title": "Knulli Port Hub - situação no RG35XXH",
+  "updated": "2026-11-24",
+  "about": "Catálogo extra do Knulli Port Hub. Itens com o mesmo id do catálogo oficial (R36S PORT HUB) só acrescentam a situação no RG35XXH em \"h700\". Itens novos com download_url entram como ports normais. status: testado | pesado | nao_funciona.",
+  "ports": [
+    {
+      "id": "marvel-cosmic-invasion",
+      "h700": { "status": "testado", "tested_on": "RG35XXH / Knulli Scarab 2026-05",
+        "note": "Roda bem. Precisa do runtime mono do PortMaster (mono-6.12.0.122)." }
+    },
+    {
+      "id": "the-legend-of-zelda-the-wind-waker",
+      "h700": { "status": "pesado", "tested_on": "RG35XXH / Knulli Scarab 2026-05",
+        "note": "Port NextOS: fica travado em 30 FPS e engasga nas primeiras horas (os shaders são compilados durante o jogo e o cache melhora nas sessões seguintes). Esquenta perto de 60 °C. Na primeira abertura leva uns 4 minutos preparando." }
+    },
+    {
+      "id": "chrono-trigger",
+      "h700": { "status": "testado", "tested_on": "RG35XXH / Knulli Scarab 2026-05",
+        "note": "Roda (versão de celular, usa o APK que vem no pacote, 1,1 GB instalado). Só em inglês: o port força o idioma e não há tradução PT-BR para essa versão. Para jogar em português, use a versão de SNES traduzida." }
+    },
+    {
+      "id": "super-mario-galaxy-pt-br",
+      "h700": { "status": "testado", "tested_on": "RG35XXH / Knulli Scarab 2026-05",
+        "note": "Roda. Atenção: o save fica dentro da pasta do port; faça backup antes de apagar ou reinstalar." }
+    }
+  ]
+}
