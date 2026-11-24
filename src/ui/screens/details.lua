@@ -78,6 +78,13 @@ function S:layout()
     para(I18N.tr(L("Y: ver detalhes da compatibilidade")))
     LN[#LN + 1] = { t = "" }
   end
+  -- Knulli: ultimo modo desempenho, preferencia e avaliacao no RG35XXH
+  local perf_lines = C.KNULLI and require("ui.perf_ui").detail_lines(p) or {}
+  if #perf_lines > 0 then
+    head(L("DESEMPENHO NO RG35XXH"))
+    for _, t in ipairs(perf_lines) do para(t) end
+    LN[#LN + 1] = { t = "" }
+  end
   head(L("DESCRIÇÃO"))
   local desc = Catalog.text(p, "description")
   para(desc ~= "" and desc or L("Sem descrição."))
@@ -117,6 +124,11 @@ function S:layout()
     NL[#NL + 1] = { t = "" }
     NL[#NL + 1] = { t = L("COMPATIBILIDADE"), h = true }
     npara(I18N.tr(Compat.LABEL[self.compat.status]) .. ": " .. I18N.tr(self.compat.reason))
+  end
+  if #perf_lines > 0 then
+    NL[#NL + 1] = { t = "" }
+    NL[#NL + 1] = { t = L("DESEMPENHO NO RG35XXH"), h = true }
+    for _, t in ipairs(perf_lines) do npara(t) end
   end
   if p.notes ~= "" then
     NL[#NL + 1] = { t = "" }
@@ -283,6 +295,7 @@ function S:draw()
   end
   local hs = { { "a", L("Confirmar") }, { "select", Favorites.is(p) and L("Desfavoritar") or L("Favoritar") } }
   if self.compat then hs[#hs + 1] = { "y", L("Compatibilidade") } end
+  if C.KNULLI and not p.builtin then hs[#hs + 1] = { "x", L("Desempenho") } end
   hs[#hs + 1] = { "b", L("Voltar") }
   hs[#hs + 1] = { "dpad", L("Rolar / escolher") }
   G.hints(hs)
@@ -406,6 +419,7 @@ function S:draw_neon()
   end
   local hs = { { "dpad", L("Escolher / rolar") }, { "a", L("Confirmar") } }
   if self.compat then hs[#hs + 1] = { "y", L("Compatibilidade") } end
+  if C.KNULLI and not p.builtin then hs[#hs + 1] = { "x", L("Desempenho") } end
   hs[#hs + 1] = { "select", Favorites.is(p) and L("Desfavoritar") or L("Favoritar") }
   hs[#hs + 1] = { "b", L("Voltar") }
   G.hints(hs)
@@ -445,6 +459,8 @@ function S:action(act)
     return
   end
   if act == "y" and self.compat then App.push("compat", { port = self.port }); return end
+  -- Knulli: modo desempenho (iniciar / sempre / ultimo resumo) e avaliacao no RG35XXH
+  if act == "x" and C.KNULLI and not self.port.builtin then require("ui.perf_ui").port_menu(self.port); return end
   local cb = self:classic_buttons()
   self.btn = U.clamp(self.btn or 1, 1, #cb)
   if act == "left" then self.btn = math.max(1, self.btn - 1)

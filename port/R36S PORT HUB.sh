@@ -231,7 +231,11 @@ while true; do
     PORT_REQ=$(head -n 1 "$CONFDIR/.run_port" 2>/dev/null)
     rm -f "$CONFDIR/.run_port"
     PORT_SH=${PORT_REQ%%|*}
-    PORT_ID=$(printf '%s' "${PORT_REQ#*|}" | tr -cd 'A-Za-z0-9_-')
+    PORT_REST=${PORT_REQ#*|}
+    PORT_ID=$(printf '%s' "${PORT_REST%%|*}" | tr -cd 'A-Za-z0-9_-')
+    # Knulli Port Hub: "script|id|perf" = abrir em modo desempenho (bin/perf_run.sh)
+    PORT_MODE=""
+    case "$PORT_REST" in *"|perf") PORT_MODE=perf ;; esac
     PORTS_ROOT="/$directory/ports"
     case "$PORT_SH" in
       ""|*/*|*..*) PORT_SH="" ;;
@@ -247,9 +251,16 @@ while true; do
         export XDG_DATA_HOME="$XDG_DATA_HOME_ORIG"
         if [ -n "$PH_LD_SET" ]; then export LD_LIBRARY_PATH="$PH_LD_ORIG"; else unset LD_LIBRARY_PATH; fi
         if [ -n "$PH_SDL_SET" ]; then export SDL_GAMECONTROLLERCONFIG="$PH_SDL_ORIG"; else unset SDL_GAMECONTROLLERCONFIG; fi
-        bash "./$PORT_SH"
+        if [ "$PORT_MODE" = perf ] && [ -f "$GAMEDIR/bin/perf_run.sh" ]; then
+          bash "$GAMEDIR/bin/perf_run.sh" "$PORT_SH" "$PORT_ID"
+        else
+          bash "./$PORT_SH"
+        fi
       )
-      echo "[launcher] Port encerrado (codigo $?); voltando ao R36S PORT HUB"
+      PORT_RC=$?
+      # seguranca: se o perf_run foi morto junto com o grupo, desfaz o perfil
+      [ -f /tmp/porthub-perf.state ] && bash "$GAMEDIR/bin/perf_run.sh" --restore
+      echo "[launcher] Port encerrado (codigo $PORT_RC); voltando ao R36S PORT HUB"
       export PORTHUB_RETURN="port|$PORT_ID"
     else
       echo "[launcher] Pedido de port ignorado (script invalido): $PORT_REQ"

@@ -760,16 +760,26 @@ end
 
 --- Iniciar um port pelo hub: o hub fecha, o launcher roda o script do port
 --- (com o ambiente original do sistema) e, ao sair do jogo, abre o hub de novo.
-function App.launch_port(p)
+--- opts.perf (so Knulli): true = modo desempenho, false = normal mesmo com
+--- "sempre em modo desempenho" ligado, nil = segue a preferencia do port.
+--- Modo desempenho: .run_port = "script|id|perf" (o launcher roda bin/perf_run.sh).
+function App.launch_port(p, opts)
   local script = App.port_script(p)
   if not script then
     App.toast(L("Não encontrei o script deste port na pasta de ports. Reinstale-o ou abra pela lista de Ports."), "warn")
     return
   end
   if blocked_for_game() then return end
+  local perf = false
+  if C.KNULLI and not p.script_override then
+    local Perf = require("core.perf")
+    if Perf.available() then
+      if opts and opts.perf ~= nil then perf = opts.perf and true or false else perf = Perf.always(p.id) end
+    end
+  end
   local function go()
     os.execute("mkdir -p " .. U.shq(C.APP_DIR .. "/conf") .. " 2>/dev/null")
-    if not U.write_file(C.APP_DIR .. "/conf/.run_port", script .. "|" .. tostring(p.id) .. "\n") then
+    if not U.write_file(C.APP_DIR .. "/conf/.run_port", script .. "|" .. tostring(p.id) .. (perf and "|perf" or "") .. "\n") then
       App.toast(L("Não foi possível iniciar o jogo (pasta do app somente leitura?)."), "error")
       return
     end
@@ -781,11 +791,14 @@ function App.launch_port(p)
       if id ~= tostring(p.id) and #list < 8 then list[#list + 1] = id end
     end
     Prefs.set("recent_ports", table.concat(list, ","))
+    -- Knulli: lembra a sessao para o "Como rodou?" ao voltar
+    if C.KNULLI and not p.script_override then pcall(function() require("core.perf").mark_launch(p.id, perf) end) end
     App.quit(true)
   end
   local body = string.format(L("O R36S PORT HUB vai fechar e %s vai abrir.\nAo sair do jogo, o hub abre de novo.\n\nScript: %s"), p.name, script)
+  if perf then body = body .. L("\n\nModo desempenho: CPU no máximo, GPU a 696 MHz e o menu pausado enquanto joga. Tudo volta ao normal ao sair.") end
   if Ftp.running() then body = body .. L("\n\nO servidor FTP será parado.") end
-  App.show_dialog({ title = L("Iniciar o jogo?"), kind = "info", body = body,
+  App.show_dialog({ title = perf and L("Iniciar em modo desempenho?") or L("Iniciar o jogo?"), kind = "info", body = body,
     buttons = { { label = L("INICIAR"), fn = function() if Ftp.running() then Ftp.stop_wait() end; go() end },
       { label = L("CANCELAR") } } })
 end
@@ -807,6 +820,11 @@ local function return_from_tool()
     App.reset_to("menu")
     local p = Catalog.by_id[from]
     if p then App.push("details", { port = p }) end
+    -- Knulli: "Como rodou?" (uma vez por sessao de jogo, se o port ainda nao tem avaliacao)
+    if C.KNULLI then
+      local okp, perr = pcall(function() require("ui.perf_ui").after_play(p, from) end)
+      if not okp then U.log("perf_ui.after_play:", tostring(perr)) end
+    end
     return true
   end
   if id ~= "analog_tester" then return false end
