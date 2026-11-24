@@ -392,6 +392,8 @@ function PS.icon(id, x, y, size, c)
     lg.polygon("fill", pts)
   elseif id == "download" then
     lg.line(12, 3, 12, 15); lg.line(7, 10, 12, 15, 17, 10); lg.line(4, 17, 4, 21, 20, 21, 20, 17)
+  elseif id == "clock" then
+    lg.circle("line", 12, 12, 9); lg.line(12, 7, 12, 12, 15.5, 14)
   elseif id == "power" then
     lg.arc("line", "open", 12, 13, 8, -math.pi * 0.3, math.pi * 1.3, 16); lg.line(12, 3, 12, 11)
   else

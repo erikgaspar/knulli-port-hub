@@ -16,6 +16,10 @@ local Favorites = require("core.favorites")
 
 local S = {}
 
+-- Tema Premium: busca instantanea com indice e pontuacao (ui/premium/search.lua)
+local function premium() return T.style.layout == "premium" end
+local function PSr() return require("ui.premium.search") end
+
 local KEYS = {
   { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J" },
   { "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T" },
@@ -31,7 +35,9 @@ local function norm(s)
   return (s:gsub("%s+", " "))
 end
 
-function S:enter()
+function S:enter(params)
+  self.premium = premium()
+  if self.premium then return PSr().enter(self, params) end
   self.query = ""
   self.kr, self.kc = 1, 1
   self.focus = "keys"
@@ -39,8 +45,8 @@ function S:enter()
   self:search()
 end
 
-function S:resume() self:search(true) end
-function S:on_catalog() self:search(true) end
+function S:resume() if self.premium then return PSr().resume(self) end self:search(true) end
+function S:on_catalog() if self.premium then return PSr().on_catalog(self) end self:search(true) end
 
 --- Busca real no catalogo (nome). Comeca-com aparece antes de contem.
 function S:search(keep)
@@ -78,6 +84,7 @@ function S:clamp()
 end
 
 function S:draw()
+  if self.premium then return PSr().draw(self) end
   local games, tools = 0, 0
   for _, p in ipairs(self.results) do if p.section == "tools" then tools = tools + 1 else games = games + 1 end end
   G.header(L("Pesquisar"), self.query ~= "" and string.format(L("%d jogos  •  %d utilitários"), games, tools) or nil)
@@ -163,6 +170,7 @@ function S:press_key(k)
 end
 
 function S:action(act)
+  if self.premium then return PSr().action(self, act) end
   if self.focus == "keys" then
     if act == "up" then self.kr = (self.kr - 2) % #KEYS + 1
     elseif act == "down" then self.kr = self.kr % #KEYS + 1

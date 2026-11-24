@@ -3,9 +3,15 @@
 --  Faixa EM DESTAQUE (112 px) com arte de fundo, abas em pilulas (L1/R1) e
 --  grade de capas em 6 colunas. Abas "Apps do Knulli" e "BIOS" abrem as telas
 --  proprias (um cartao grande explica e abre com B).
---    direcional: grade (cima na primeira linha vai para a faixa EM DESTAQUE)
+--  Abas de grade (Jogos, Utilitarios) tem filtros e ordenacao proprios
+--  (core/portfilter.lua, lembrados em Prefs por aba): com algum ativo aparece
+--  uma faixa de pilulas entre as abas e a grade.
+--    direcional: grade (cima: faixa de filtros, depois EM DESTAQUE)
 --    B (acao "a"): abrir | A (acao "b"): voltar | L1/R1: abas | X (acao "y"): buscar
---    SELECT: favorito | na faixa: esquerda/direita trocam o destaque
+--    Y (acao "x"): painel de filtros | L2/R2: letra anterior/seguinte (A-Z;
+--    nas outras ordens, pagina) | SELECT: favorito
+--    na faixa EM DESTAQUE: esquerda/direita trocam o destaque
+--    na faixa de filtros: B tira o filtro escolhido ("Limpar" tira todos)
 -- =============================================================================
 local L = require("lib.i18n").L
 local C = require("config")
@@ -13,6 +19,7 @@ local U = require("lib.util")
 local Catalog = require("core.catalog")
 local Covers = require("core.covers")
 local Favorites = require("core.favorites")
+local PF = require("core.portfilter")
 local PS = require("ui.premium.style")
 local PG = require("ui.premium.grid")
 local PI = require("ui.premium.images")
@@ -22,7 +29,9 @@ local lg = love.graphics
 
 local BAND_H, TABS_Y, TABS_H = 112, 112, 42
 local GRID_Y = BAND_H + TABS_H + 2
+local STRIP_H = 30
 local DWELL, FADE = 6.0, 0.5
+local JUMP_T = 0.6
 
 local function tabs()
   local t = { { id = "games", label = L("Jogos"), kind = "grid" } }
@@ -47,19 +56,41 @@ local function featured_list()
   return out
 end
 
-local function build_items(section)
+--- filtro da aba (lido de Prefs na primeira vez)
+local function filt(s, id)
+  s.filters = s.filters or {}
+  local f = s.filters[id]
+  if not f then f = PF.load(id); s.filters[id] = f end
+  return f
+end
+
+--- itens da grade: ports da aba filtrados e ordenados. Sem filtro, as
+--- ferramentas integradas (aba Utilitarios) ficam na frente
+local function build_items(s, section)
+  local f = filt(s, section)
+  local base = Catalog.filter("all", App.status, section)
+  s.base = base
+  local ports = PF.apply(base, f)
   local items = {}
-  for _, t in ipairs(require("core.tools").for_filter(section, "all")) do items[#items + 1] = t end
-  local ports = Catalog.filter("all", App.status, section)
-  ports = require("ui.settings_extra").sort_ports(ports, "list_sort")
+  if PF.active_count(f) == 0 then
+    for _, t in ipairs(require("core.tools").for_filter(section, "all")) do items[#items + 1] = t end
+  end
   for _, p in ipairs(ports) do items[#items + 1] = p end
   return items
+end
+
+local function cat_name(id)
+  local Cats = require("core.categories")
+  local c = Cats.BY_ID[id]
+  if c then return c.name end
+  for _, x in ipairs(Catalog.categories) do if x.id == id then return x.name end end
+  return id
 end
 
 local function st(self)
   local s = self.pc
   if not s then
-    s = { tab = 1, sel = 1, zone = "grid", feat = 1, feat_t = 0 }
+    s = { tab = 1, sel = 1, zone = "grid", feat = 1, feat_t = 0, chip = 1 }
     self.pc = s
   end
   if not s.tabs then
@@ -71,10 +102,19 @@ local function st(self)
   end
   local t = s.tabs[s.tab]
   if t.kind == "grid" and not s.items then
-    s.items = build_items(t.id)
+    s.items = build_items(s, t.id)
+    s.jump = nil
     s.sel = U.clamp(s.sel, 1, math.max(1, #s.items))
     s.count = 0
     for _, p in ipairs(s.items) do if not p.builtin then s.count = s.count + 1 end end
+    local f = filt(s, t.id)
+    s.chips = PF.is_default(f) and {} or PF.chips(f, cat_name)
+    if #s.chips > 0 then s.chips[#s.chips + 1] = { key = "all", label = L("Limpar"), clear = true } end
+    s.chip = U.clamp(s.chip or 1, 1, math.max(1, #s.chips))
+    s.grid_y = #s.chips > 0 and (GRID_Y + STRIP_H) or GRID_Y
+    if s.zone == "chips" and #s.chips == 0 then s.zone = "grid" end
+  elseif t.kind ~= "grid" then
+    s.chips, s.grid_y = {}, GRID_Y
   end
   return s
 end
@@ -84,18 +124,25 @@ function PC.invalidate(self)
   if self.pc then self.pc.tabs = nil; self.pc.items = nil; self.pc.oinfo = nil end
 end
 
+local function metrics(s) return PG.metrics(20, s.grid_y or GRID_Y, 600, PS.FOOT_Y - 6) end
+
 function PC.update(self, dt)
   local s = st(self)
   local t = s.tabs[s.tab]
   if t.kind == "grid" then
-    PG.update(s, #s.items, s.sel, PG.metrics(20, GRID_Y, 600, PS.FOOT_Y - 6), dt)
+    PG.update(s, #s.items, s.sel, metrics(s), dt)
+  end
+  if s.sheet then require("ui.premium.filtersheet").update(s.sheet, dt) end
+  if s.jump then
+    s.jump.t = s.jump.t - dt
+    if s.jump.t <= 0 then s.jump = nil end
   end
   -- vitrine: troca sozinha a cada DWELL s (com animacoes ligadas)
   local n = #s.feats
   if s.fade then
     s.fade = s.fade + dt
     if s.fade >= FADE then s.fade = nil end
-  elseif n > 1 and App.animations() and s.zone ~= "band" then
+  elseif n > 1 and App.animations() and s.zone ~= "band" and not s.sheet then
     s.feat_t = s.feat_t + dt
     if s.feat_t > DWELL then PC.feat_go(s, 1) end
   end
@@ -181,9 +228,81 @@ local function draw_tabs(self, s)
   end
   local t = s.tabs[s.tab]
   if t.kind == "grid" then
-    local rf = PS.font("r", 12, true)
-    local txt = string.format(PS.tr(s.count == 1 and L("%d port") or L("%d ports")), s.count or 0)
-    if 620 - rf:getWidth(txt) > x then PS.text(rf, txt, 620 - rf:getWidth(txt), TABS_Y + 21 - rf:getHeight() / 2, c.dim) end
+    -- botao do painel de filtros (com o numero de filtros ligados)
+    local rf = PS.font("m", 12, true)
+    local n = PF.active_count(filt(s, t.id))
+    local label = PS.tr(L("Filtros"))
+    local w = 8 + 18 + 6 + rf:getWidth(label) + (n > 0 and (6 + 18) or 0) + 12
+    local fx = 620 - w
+    if fx > x then
+      PS.rect(fx, TABS_Y + 7, w, 28, c.surf, 14)
+      PS.glyph("x", fx + 6, TABS_Y + 12, 18)
+      PS.text(rf, label, fx + 30, TABS_Y + 21 - rf:getHeight() / 2, c.dim2)
+      if n > 0 then
+        local nf = PS.font("b", 11, true)
+        local nx = fx + 30 + rf:getWidth(label) + 6
+        PS.rect(nx, TABS_Y + 12, 18, 18, c.accent, 9)
+        local ns = tostring(n)
+        PS.text(nf, ns, nx + 9 - nf:getWidth(ns) / 2, TABS_Y + 21 - nf:getHeight() / 2, c.bg)
+      elseif #(s.chips or {}) == 0 then
+        -- sem filtros: a contagem fica a esquerda do botao
+        local cf = PS.font("r", 12, true)
+        local txt = string.format(PS.tr(s.count == 1 and L("%d port") or L("%d ports")), s.count or 0)
+        if fx - 12 - cf:getWidth(txt) > x then PS.text(cf, txt, fx - 12 - cf:getWidth(txt), TABS_Y + 21 - cf:getHeight() / 2, c.dim) end
+      end
+    end
+  end
+end
+
+--- faixa dos filtros ativos: "N ports", pilulas com x e "Limpar"
+local function draw_strip(self, s)
+  local chips = s.chips or {}
+  if #chips == 0 then return end
+  local c = PS.c()
+  local y = GRID_Y - 2
+  local h = 22
+  local cy = y + (STRIP_H - h) / 2 - 1
+  local bf = PS.font("b", 12, true)
+  local txt = string.format(PS.tr(s.count == 1 and L("%d port") or L("%d ports")), s.count or 0)
+  local x = 20 + PS.text(bf, txt, 20, cy + h / 2 - bf:getHeight() / 2, s.count > 0 and c.accent or c.warn) + 12
+  local f = PS.font("m", 11, true)
+  local xf = PS.font("b", 11, true)
+  local focus = s.zone == "chips"
+  for i, ch in ipairs(chips) do
+    local label = PS.tr(ch.label)
+    local w = f:getWidth(label) + 20 + (ch.clear and 0 or 12)
+    -- nao cabe: "+N" no lugar das que sobram (o Limpar sempre aparece)
+    local rest = 0
+    if not ch.clear then
+      local lw = f:getWidth(PS.tr(L("Limpar"))) + 20
+      if x + w + 8 + lw > 620 then rest = #chips - i end
+    end
+    if rest > 0 then
+      local more = "+" .. rest
+      local mw = f:getWidth(more) + 16
+      PS.rect(x, cy, mw, h, c.surf, h / 2)
+      PS.text(f, more, x + 8, cy + h / 2 - f:getHeight() / 2, c.dim2)
+      if focus and s.chip >= i and s.chip < #chips then PS.frame(x - 2, cy - 2, mw + 4, h + 4, c.accent, h / 2 + 2, 2) end
+      x = x + mw + 8
+      ch = chips[#chips]
+      label = PS.tr(ch.label)
+      w = f:getWidth(label) + 20
+      i = #chips
+      PS.frame(x, cy, w, h, c.line, h / 2, 1)
+      PS.text(f, label, x + 10, cy + h / 2 - f:getHeight() / 2, c.dim2)
+      if focus and s.chip == i then PS.frame(x - 2, cy - 2, w + 4, h + 4, c.accent, h / 2 + 2, 2) end
+      break
+    end
+    if ch.clear then
+      PS.frame(x, cy, w, h, c.line, h / 2, 1)
+      PS.text(f, label, x + 10, cy + h / 2 - f:getHeight() / 2, c.dim2)
+    else
+      PS.rect(x, cy, w, h, c.surf2, h / 2)
+      PS.text(f, label, x + 10, cy + h / 2 - f:getHeight() / 2, c.text)
+      PS.text(xf, "×", x + w - 16, cy + h / 2 - xf:getHeight() / 2 - 1, c.dim)
+    end
+    if focus and s.chip == i then PS.frame(x - 2, cy - 2, w + 4, h + 4, c.accent, h / 2 + 2, 2) end
+    x = x + w + 8
   end
 end
 
@@ -226,6 +345,57 @@ local function draw_open(self, s)
   PS.text(bf, label, x + 108 + 38, y + h - 24 - 15 - bf:getHeight() / 2, c.bg)
 end
 
+--- grade vazia: sem ports na aba, ou nenhum com os filtros escolhidos
+local function draw_empty(self, s, t)
+  local c = PS.c()
+  local f = filt(s, t.id)
+  if PF.active_count(f) == 0 then
+    local ef = PS.font("r", 13)
+    PS.fit(ef, L("Nenhum port ainda. Eles aparecem aqui quando o catálogo for atualizado."), 20, GRID_Y + 80, 600, c.dim, "center")
+    return
+  end
+  local y = s.grid_y + 34
+  PS.rect(296, y, 48, 48, c.surf, 14)
+  PS.icon("search", 308, y + 12, 24, c.dim)
+  local tf, df = PS.font("b", 15), PS.font("r", 12)
+  PS.fit(tf, L("Nenhum port com esses filtros"), 20, y + 62, 600, c.text, "center")
+  PS.fit(df, L("Tire um filtro na faixa acima ou ajuste o painel."), 20, y + 86, 600, c.dim, "center")
+  -- botoes: B limpa, Y abre o painel
+  local bf = PS.font("b", 12, true)
+  local l1, l2 = PS.tr(L("Limpar filtros")), PS.tr(L("Filtros"))
+  local w1 = 12 + 16 + 8 + bf:getWidth(l1) + 14
+  local w2 = 12 + 16 + 8 + bf:getWidth(l2) + 14
+  local bx = 320 - (w1 + 10 + w2) / 2
+  local by = y + 116
+  PS.rect(bx, by, w1, 30, c.accent, 15)
+  PS.glyph("a", bx + 12, by + 7, 16, true)
+  PS.text(bf, l1, bx + 36, by + 15 - bf:getHeight() / 2, c.bg)
+  bx = bx + w1 + 10
+  PS.rect(bx, by, w2, 30, c.surf2, 15)
+  PS.glyph("x", bx + 12, by + 7, 16)
+  PS.text(bf, l2, bx + 36, by + 15 - bf:getHeight() / 2, c.dim2)
+end
+
+--- letra grande no centro da grade depois do pulo L2/R2
+local function draw_jump(s)
+  local j = s.jump
+  if not j then return end
+  local c = PS.c()
+  local a = math.min(1, j.t / 0.18)
+  local m = metrics(s)
+  local cx, cy = 320, m.y + m.view / 2
+  PS.shadow(cx - 50, cy - 50, 100, 100, 20, 6, 0.6 * a)
+  PS.rect(cx - 50, cy - 50, 100, 100, c.surf, 20, 0.96 * a)
+  PS.frame(cx - 50, cy - 50, 100, 100, c.accent, 20, 2, a)
+  if j.letter == "*" then
+    -- ferramentas integradas (antes dos ports, sem letra)
+    PS.icon("wrench", cx - 24, cy - 24, 48, c.accent)
+    return
+  end
+  local f = PS.font("x", 56, true)
+  PS.text(f, j.letter, cx - f:getWidth(j.letter) / 2, cy - f:getHeight() / 2, c.accent, a)
+end
+
 function PC.draw(self)
   local s = st(self)
   local c = PS.c()
@@ -233,39 +403,113 @@ function PC.draw(self)
   draw_tabs(self, s)
   local t = s.tabs[s.tab]
   if t.kind == "grid" then
+    draw_strip(self, s)
     if #s.items == 0 then
-      local f = PS.font("r", 13)
-      PS.fit(f, L("Nenhum port ainda. Eles aparecem aqui quando o catálogo for atualizado."), 20, GRID_Y + 80, 600, c.dim, "center")
+      draw_empty(self, s, t)
     else
-      PG.draw(s, PG.metrics(20, GRID_Y, 600, PS.FOOT_Y - 6), { items = s.items, sel = s.sel, focus = s.zone == "grid", key = "pc" .. t.id })
+      PG.draw(s, metrics(s), { items = s.items, sel = s.sel, focus = s.zone == "grid" and not s.sheet, key = "pc" .. t.id })
     end
+    draw_jump(s)
   else
     draw_open(self, s)
   end
-  PS.footer({ { "a", L("Abrir") }, { "b", L("Voltar") }, { { "l1", "r1" }, L("Abas") }, { "y", L("Buscar") }, { "select", L("Favorito") } })
+  if s.sheet then require("ui.premium.filtersheet").draw(s.sheet); return end
+  local hints = { { "a", L("Abrir") }, { "b", L("Voltar") }, { { "l1", "r1" }, L("Abas") }, { "y", L("Buscar") } }
+  if t.kind == "grid" then
+    hints[#hints + 1] = { "x", L("Filtros") }
+    if s.zone == "chips" then
+      hints[1] = { "a", L("Tirar filtro") }
+    elseif #s.items == 0 then
+      hints[1] = { "a", L("Limpar filtros") }
+    else
+      if filt(s, t.id).sort == "az" then hints[#hints + 1] = { { "l2", "r2" }, L("Letra") } end
+      hints[#hints + 1] = { "select", L("Favorito") }
+    end
+  end
+  PS.footer(hints)
 end
 
 function PC.switch_tab(self, d)
   local s = st(self)
   s.tab = (s.tab - 1 + d) % #s.tabs + 1
-  s.items, s.sel, s.pg_scroll, s.pg_target, s.oinfo = nil, 1, 0, 0, nil
-  if s.zone == "grid" or s.zone == "open" then s.zone = "grid" end
+  s.items, s.sel, s.pg_scroll, s.pg_target, s.oinfo, s.jump = nil, 1, 0, 0, nil, nil
+  if s.zone == "grid" or s.zone == "open" or s.zone == "chips" then s.zone = "grid" end
   Covers.reset_pending()
+end
+
+--- o filtro da aba mudou: grava, refaz a grade e volta ao comeco
+local function refilter(s, keep_zone)
+  local t = s.tabs[s.tab]
+  PF.save(t.id, filt(s, t.id))
+  s.items, s.sel, s.pg_scroll, s.pg_target = nil, 1, 0, 0
+  s.jump = nil
+  if not keep_zone then s.zone = "grid" end
+  Covers.reset_pending()
+end
+
+--- L2/R2: primeira capa da letra anterior/seguinte (ordem A-Z); nas outras
+--- ordens, pula 3 linhas
+local function jump(s, d)
+  local items = s.items
+  local n = #items
+  if n == 0 then return end
+  local f = filt(s, s.tabs[s.tab].id)
+  s.zone = "grid"
+  if f.sort ~= "az" then
+    s.sel = U.clamp(s.sel + d * PG.COLS * 3, 1, n)
+    return
+  end
+  local letter = PF.letter
+  local function block_start(i)
+    local l = letter(items[i])
+    while i > 1 and letter(items[i - 1]) == l do i = i - 1 end
+    return i
+  end
+  local i
+  if d > 0 then
+    local l = letter(items[s.sel])
+    i = s.sel
+    while i <= n and letter(items[i]) == l do i = i + 1 end
+    if i > n then i = 1 end                -- depois da ultima letra: volta ao comeco
+  else
+    local b = block_start(s.sel)
+    if b > 1 then i = block_start(b - 1) else i = block_start(n) end
+  end
+  s.sel = i
+  -- a primeira linha da letra vai para o topo da grade
+  local m = metrics(s)
+  local row = math.floor((i - 1) / PG.COLS)
+  local rows = math.ceil(n / PG.COLS)
+  local maxs = math.max(0, rows * (m.rh + PG.GAP) - PG.GAP - (m.view - 4))
+  s.pg_target = math.min(row * (m.rh + PG.GAP), maxs)
+  local l = letter(items[i])
+  s.jump = { letter = l, t = JUMP_T }
 end
 
 function PC.action(self, act)
   local s = st(self)
   local t = s.tabs[s.tab]
+  -- painel de filtros aberto: ele recebe tudo
+  if s.sheet then
+    local r = require("ui.premium.filtersheet").action(s.sheet, act)
+    if r == "close" then s.sheet = nil; refilter(s) end
+    return
+  end
   if act == "b" then App.pop(); return end
   if act == "l1" then PC.switch_tab(self, -1); return end
   if act == "r1" then PC.switch_tab(self, 1); return end
   if act == "y" then App.push("search"); return end
+  if act == "x" and t.kind == "grid" then
+    s.sheet = require("ui.premium.filtersheet").open(t.id, s.base or Catalog.filter("all", App.status, t.id), filt(s, t.id))
+    return
+  end
+  local has_chips = t.kind == "grid" and #(s.chips or {}) > 0
   if s.zone == "band" then
     local p = s.feats[s.feat]
-    if act == "down" then s.zone = "grid"
+    if act == "down" then s.zone = has_chips and "chips" or "grid"
     elseif act == "left" then PC.feat_go(s, -1)
     elseif act == "right" then PC.feat_go(s, 1)
-    elseif act == "a" or act == "x" then if p then App.push("details", { port = p }) end
+    elseif act == "a" then if p then App.push("details", { port = p }) end
     end
     return
   end
@@ -276,15 +520,40 @@ function PC.action(self, act)
     end
     return
   end
+  if s.zone == "chips" then
+    local n = #s.chips
+    if act == "left" then s.chip = math.max(1, s.chip - 1)
+    elseif act == "right" then s.chip = math.min(n, s.chip + 1)
+    elseif act == "up" then s.zone = "band"
+    elseif act == "down" then s.zone = "grid"
+    elseif act == "a" then
+      local ch = s.chips[s.chip]
+      local f = filt(s, t.id)
+      if ch.clear then PF.clear(f) else PF.clear_key(f, ch.key) end
+      refilter(s, true)
+      st(self)
+      if #s.chips == 0 then s.zone = "grid" end
+    end
+    return
+  end
+  if act == "l2" then jump(s, -1); return end
+  if act == "r2" then jump(s, 1); return end
   local n = #s.items
   if act == "up" or act == "down" or act == "left" or act == "right" then
     local sel, out = PG.move(s.sel, n, act)
     s.sel = sel
-    if out == "up" then s.zone = "band" end
+    if out == "up" or (n == 0 and act == "up") then s.zone = has_chips and "chips" or "band" end
     return
   end
   local p = s.items[s.sel]
-  if not p then return end
+  if not p then
+    -- grade vazia por causa dos filtros: B limpa tudo
+    if act == "a" and PF.active_count(filt(s, t.id)) > 0 then
+      PF.clear(filt(s, t.id), true)
+      refilter(s)
+    end
+    return
+  end
   if act == "a" then
     if p.builtin then App.push(p.screen, { from = "store" }) else App.push("details", { port = p }) end
   elseif act == "select" then
