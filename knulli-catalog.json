@@ -52,7 +52,7 @@
       "license": "Uso pessoal (fonte Inter: SIL OFL)",
       "repository": "https://github.com/erikgaspar/knulli-port-hub/tree/main/apps/tubo",
       "image_url": "https://raw.githubusercontent.com/erikgaspar/knulli-port-hub/main/apps/tubo/tubo-image.png",
-      "release": {"url": "", "size": 0, "sha256": "", "installed_size": 0},
+      "release": {"url": "https://github.com/erikgaspar/knulli-port-hub/releases/download/tubo-v1.0.1/Tubo.zip", "size": 878149, "sha256": "036cb666adc70194c9db9b856a18eb68d7ae5b7ef556019de5819e5199449dfa", "installed_size": 11265890},
       "install": {
         "destination": "/userdata/system/knulli-tools/tubo",
         "launcher": "Tubo.sh",
