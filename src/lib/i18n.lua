@@ -44,6 +44,9 @@ local BTN_PATS = {
   "(: )([ABXY])( ou )", "(%()([ABXY])( mostra)", "(—%s+)([ABXY])( para ver)",
   "(%. )([AB])( abre)", "( e )([AB])( volta)",
   "([Pp]ress )([ABXY])%f[^%w]", "([Bb]utton )([ABXY])%f[^%w]",
+  -- russo (letras com acento/cirilico nao cabem em [..] do Lua: uma forma por padrao)
+  "(Нажмите )([ABXY])%f[^%w]", "(нажмите )([ABXY])%f[^%w]", "(Кнопка )([ABXY])%f[^%w]",
+  "(кнопка )([ABXY])%f[^%w]", "(кнопку )([ABXY])%f[^%w]", "(кнопкой )([ABXY])%f[^%w]",
 }
 local function swap_buttons(s)
   if not s:find("[ABXY]") then return s end
