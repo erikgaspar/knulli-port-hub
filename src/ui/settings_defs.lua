@@ -117,10 +117,10 @@ local appearance = {
       get = function() return App.anim end,
       set = function(v) App.anim = v; Prefs.set("anim", v and "1" or "0") end },
     { kind = "action", label = L("Restaurar aparência original"),
-      desc = L("Volta ao Tema Padrão, ao tamanho de texto padrão e liga as animações. Brilho e idioma não mudam."),
+      desc = C.KNULLI and L("Volta ao tema Knulli Premium, ao tamanho de texto padrão e liga as animações. Brilho e idioma não mudam.") or L("Volta ao Tema Padrão, ao tamanho de texto padrão e liga as animações. Brilho e idioma não mudam."),
       on_a = function()
         App.show_dialog({ title = L("Restaurar aparência?"), kind = "warn",
-          body = L("O hub volta ao tema Pastel Pop Edition, com o tamanho de texto padrão e as animações ligadas."),
+          body = C.KNULLI and L("O hub volta ao tema Knulli Premium, com o tamanho de texto padrão e as animações ligadas.") or L("O hub volta ao tema Pastel Pop Edition, com o tamanho de texto padrão e as animações ligadas."),
           buttons = { { label = L("RESTAURAR"), fn = function()
             local first = Themes.by_id and Themes.by_id[Themes.FIRST] and Themes.FIRST or Themes.DEFAULT
             if Themes.current ~= first then Themes.apply(first, true) end

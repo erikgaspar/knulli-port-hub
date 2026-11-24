@@ -16,7 +16,7 @@ local META = DIR .. "/backup.json"
 
 B.GROUPS = {
   { id = "prefs", label = L("Preferências"), desc = L("Idioma, tema, brilho, som, notificações e aviso aceito."),
-    files = { "settings.txt", "theme.txt", "brightness.txt" } },
+    files = { "settings.txt", "theme.txt", "theme_picked.txt", "brightness.txt" } },
   { id = "favorites", label = L("Favoritos"), desc = L("Ports marcados com estrela."), files = { "favorites.json" } },
   { id = "ftp", label = L("Servidor FTP"), desc = L("Porta, usuário e senha do FTP."), files = { "ftp.json" } },
   { id = "history", label = L("Históricos"), desc = L("Histórico de downloads e do FTP."),
