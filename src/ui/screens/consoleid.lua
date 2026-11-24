@@ -94,10 +94,15 @@ function S:build_lines()
     local proc = info.soc and (info.soc:upper() .. (info.cpu and ("  •  " .. info.cpu) or "")) or info.cpu
     kv(L("Processador"), proc or no, info.soc and T.c.green or (proc and T.c.yellow or T.c.red))
     kv(L("Memória RAM"), require("core.consoleid").ram_label(info.mem_kb) or no, info.mem_kb and T.c.green or T.c.red)
+    if r.knulli then
+      -- Knulli: placa informada pelo sistema; o H700 nao tem assinatura de painel na Device Tree
+      kv(L("Placa"), r.board and (r.board .. "  •  " .. L("informada pelo Knulli")) or no, r.board and T.c.green or T.c.red)
+    else
     kv(L("Placa"), r.board and (r.board .. "  •  " .. L("na base")) or (info.model and (info.model .. "  •  " .. L("fora da base")) or no),
       r.board and T.c.green or (info.model and T.c.yellow or T.c.red))
     kv(L("Painel de tela"), info.panel_sha1 and (r.panel_known and L("assinatura conhecida") or L("assinatura fora da base")) or no,
       info.panel_sha1 and (r.panel_known and T.c.green or T.c.yellow) or T.c.red)
+    end
     kv(L("Tela"), res or no, res and T.c.green or T.c.red)
     kv(L("Bateria"), info.battery and ok or no, info.battery and T.c.green or T.c.red)
     kv(L("Armazenamento"), info.sd and ok or no, info.sd and T.c.green or T.c.red)

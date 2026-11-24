@@ -105,7 +105,7 @@ local appearance = {
         Brightness.nudge(dir)
       end },
     { kind = "action", label = L("Ajustes do console (R36 Control)"), icon = "set_led",
-      desc = L("LED de aviso da bateria, correção de gama, saída de áudio e volume ao ligar (mesmos ajustes do R36 Control do dArkOSRE)."),
+      desc = C.KNULLI and L("LED de energia, saída de áudio, volume e temperatura de cor (gravados nas configurações do Knulli).") or L("LED de aviso da bateria, correção de gama, saída de áudio e volume ao ligar (mesmos ajustes do R36 Control do dArkOSRE)."),
       value = function() return "R36 Control" end,
       on_a = function() App.push("r36control") end },
     { kind = "toggle", label = L("Animações da interface"),
@@ -353,17 +353,17 @@ local controls = {
   id = "controls", icon = "set_controls", color = "orange",
   name = L("Controles"),
   desc = L("Teste de analógicos e botões, relatório e mapa dos botões."),
-  status = function() return "R36S Analog Tester" end,
+  status = function() return C.KNULLI and "Analog Tester" or "R36S Analog Tester" end,
   enter = function(scr) scr.rep_text = U.read_file(C.APP_DIR .. "/tools/r36s_analog_tester/relatorio_controles.txt") end,
   resume = function(scr) scr.rep_text = U.read_file(C.APP_DIR .. "/tools/r36s_analog_tester/relatorio_controles.txt") end,
   rows = {
     { kind = "action", label = L("Testar analógicos e botões"),
-      desc = L("Abre na hora o desenho do controle: cada botão acende quando apertado, os analógicos mostram posição, alcance e deriva. Aperte FN para voltar."),
+      desc = C.KNULLI and L("Abre na hora o desenho do controle: cada botão acende quando apertado, os analógicos mostram posição, alcance e deriva. Aperte MENU para voltar.") or L("Abre na hora o desenho do controle: cada botão acende quando apertado, os analógicos mostram posição, alcance e deriva. Aperte FN para voltar."),
       value = function() return L("ao vivo") end,
       on_a = function() App.push("padtest", { from = "settings" }) end },
     { kind = "action", label = L("Teste completo com relatório"),
       desc = L("Abre o R36S Analog Tester (por LagdoLira): analógicos, zona morta, deriva e todos os botões, com relatório salvo. O hub fecha durante o teste e volta sozinho quando você sair."),
-      value = function() return "R36S Analog Tester" end,
+      value = function() return C.KNULLI and "Analog Tester" or "R36S Analog Tester" end,
       on_a = function() App.push("tester", { from = "settings" }) end },
     { kind = "info", label = L("Último relatório"), desc = L("Resultado salvo pelo R36S Analog Tester na última vez que você voltou ao menu dele."),
       value = function(scr)
@@ -642,7 +642,7 @@ local console = {
   desc = L("Modelo, processador, tela, sistema, data e hora."),
   status = function()
     local last = require("core.consoleid").load_last()
-    return (last and last.info and last.info.model) or (C.OS_MODE and C.OS_NAME) or "R36S"
+    return (last and last.info and last.info.model) or (C.OS_MODE and C.OS_NAME) or (C.KNULLI and "Knulli" or "R36S")
   end,
   enter = function(scr) scr.info = nil; scr.loading = 2 end,     -- coleta depois do 1o quadro desenhado
   resume = function(scr) scr:rebuild() end,
@@ -720,11 +720,9 @@ D.LIST = {
 -- menu ou o hub mexeria em coisas do sistema). Compara pelo rotulo traduzido.
 if C.KNULLI then
   local HIDE = {}
-  for _, k in ipairs({ "Temas do EmulationStation", "Brilho da tela", "Ajustes do console (R36 Control)",
-      "Analisador de Console", "Gerenciar PortMaster", "Atualizar runtimes",
+  for _, k in ipairs({ "Temas do EmulationStation", "Gerenciar PortMaster", "Atualizar runtimes",
       "Otimizador e manutenção do microSD", "Verificador do cartão SD", "Atualização via rede",
-      "Aviso de nova versão do hub", "Testar analógicos e botões", "Teste completo com relatório",
-      "Todos os testes de controles", "Último relatório" }) do HIDE[L(k)] = true end
+      "Aviso de nova versão do hub" }) do HIDE[L(k)] = true end
   local function keep(rows)
     local out = {}
     for _, r in ipairs(rows or {}) do if not HIDE[r.label] then out[#out + 1] = r end end

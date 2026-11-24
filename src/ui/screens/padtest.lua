@@ -39,6 +39,16 @@ local KEYS = {
 
 local HOLD = 1.0
 
+-- Knulli (RG35XXH): o SDL_GAMECONTROLLERCONFIG do PortMaster segue a POSICAO
+-- dos botoes (estilo Xbox), nao a letra impressa: "a" = botao de baixo (B),
+-- "b" = direita (A), "x" = esquerda (Y), "y" = cima (X). "guide" = MENU.
+local KNULLI = require("config").KNULLI
+local FN_LABEL = KNULLI and "MENU" or "FN"
+if KNULLI then
+  local REL = { a = "B", b = "A", x = "Y", y = "X", guide = "MENU" }
+  for _, b in ipairs(BUTTONS) do if REL[b.id] then b.label = REL[b.id] end end
+end
+
 function S:enter(p)
   self.from = (p and p.from) or "settings"
   self.tested = {}
@@ -203,6 +213,16 @@ function S:draw_pad(px, py, pw, ph)
   -- B embaixo e Y a esquerda. Os nomes do SDL no dArkOS seguem as letras
   -- impressas no aparelho (o mesmo A que confirma no hub).
   local ax, ay = cx + 98, by + 50
+  if KNULLI then
+    -- mesmas letras impressas, nomes SDL por posicao (ver FN_LABEL acima)
+    rbtn(self, "y", ax, ay - 22, 12, "X")
+    rbtn(self, "b", ax + 22, ay, 12, "A")
+    rbtn(self, "a", ax, ay + 22, 12, "B")
+    rbtn(self, "x", ax - 22, ay, 12, "Y")
+    qbtn(self, "back", cx - 60, by + 22, 40, 14, "SEL")
+    qbtn(self, "guide", cx - 18, by + 22, 36, 14, "MENU")
+    qbtn(self, "start", cx + 20, by + 22, 40, 14, "START")
+  else
   rbtn(self, "x", ax, ay - 22, 12, "X")
   rbtn(self, "a", ax + 22, ay, 12, "A")
   rbtn(self, "b", ax, ay + 22, 12, "B")
@@ -211,6 +231,7 @@ function S:draw_pad(px, py, pw, ph)
   qbtn(self, "back", cx - 54, by + 22, 40, 14, "SEL")
   qbtn(self, "guide", cx - 14, by + 22, 28, 14, "FN")
   qbtn(self, "start", cx + 18, by + 22, 40, 14, "START")
+  end
   -- analogicos (L3 / R3 ao clicar)
   for k, st in ipairs({ { "leftstick", cx - 44 }, { "rightstick", cx + 44 } }) do
     local sx, sy = st[2], by + 96
@@ -329,8 +350,8 @@ function S:draw()
     G.rect(x + 536, yy + 5, 66, 6, T.c.bg3, 3)
     if t > 0 then G.rect(x + 536, yy + 5, 66 * math.min(1, t / HOLD), 6, T.c.yellow, 3) end
   end
-  local bw = G.button_icon("FN", x + 320, y + 15)
-  G.text_fit(T.f.small, L("Aperte FN: voltar"), x + 326 + bw, y + 14, 270 - bw, T.c.text)
+  local bw = G.button_icon(FN_LABEL, x + 320, y + 15)
+  G.text_fit(T.f.small, KNULLI and L("Aperte MENU: voltar") or L("Aperte FN: voltar"), x + 326 + bw, y + 14, 270 - bw, T.c.text)
   hold_bar(L("Segure L1 + R1: teste completo"), self.hold.full, y + 40)
 end
 

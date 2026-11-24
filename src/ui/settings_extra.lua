@@ -352,6 +352,67 @@ end
 
 -- ---------------------------------------------------------------------------
 -- MEUS PORTS
+--- Gerenciador de espaco do cartao: maiores jogos (ROMs e ports) x vezes jogado
+function X.space_manager()
+  local SM = require("core.spacemgr")
+  local all, total = {}, 0
+  local only_unplayed = false
+  local function to_items(scr)
+    local items = {}
+    for _, it in ipairs(all) do
+      if not only_unplayed or it.playcount == 0 then
+        local played = it.playcount > 0 and string.format(I18N.tr(L("jogado %d vez(es)")), it.playcount)
+          .. (it.lastplayed and ("  •  " .. it.lastplayed) or "") or I18N.tr(L("nunca jogado"))
+        items[#items + 1] = { tag = U.upper(it.sys), tagc = it.is_port and T.c.accent or T.c.accent2,
+          text = it.name, sub = U.format_bytes(it.bytes) .. "  •  " .. played,
+          detail = SM.roms_root() .. "/" .. it.rel, ref = it }
+      end
+    end
+    scr.items = items
+    scr.sel = math.min(scr.sel or 1, math.max(1, #items))
+    scr.p.sub = I18N.tr(L("Total listado: ")) .. U.format_bytes(total)
+      .. (only_unplayed and ("  •  " .. I18N.tr(L("só nunca jogados"))) or "")
+  end
+  infolist({ title = L("Gerenciador de espaço do cartão"), sub = L("Medindo..."),
+    empty = L("Nenhum jogo com 20 MB ou mais encontrado."),
+    load = function(scr)
+      scr.loading = L("Medindo o cartão (alguns segundos)...")
+      require("core.shjob").start({ SM.scan_cmd() }, function(res)
+        scr.loading = nil
+        SM.reset()
+        all, total = SM.parse(res and res[1] and res[1].out or "")
+        to_items(scr)
+      end)
+    end,
+    keys = {
+      { key = "y", label = L("Nunca jogados"), fn = function(scr)
+        only_unplayed = not only_unplayed; to_items(scr)
+      end },
+      { key = "x", label = L("Apagar"), fn = function(scr, item)
+        local it = item and item.ref
+        if not it then return end
+        if it.is_port then
+          App.show_dialog({ title = L("Remover port"), kind = "info",
+            body = L("Ports são removidos pela tela Meus Ports, que oferece backup dos saves antes de apagar.") })
+          return
+        end
+        App.show_dialog({ title = L("Apagar este jogo?"), kind = "warn",
+          body = it.name .. "\n" .. SM.roms_root() .. "/" .. it.rel .. "\n" .. U.format_bytes(it.bytes)
+            .. "\n\n" .. L("O arquivo da ROM é apagado do cartão. Os saves (pasta saves) continuam. Não pode ser desfeito."),
+          buttons = {
+            { label = L("APAGAR"), danger = true, fn = function()
+              local ok, err = SM.delete(it)
+              if not ok then App.show_dialog({ title = L("Não foi possível apagar"), kind = "error", body = tostring(err) }); return end
+              for i, a in ipairs(all) do if a == it then table.remove(all, i); total = total - it.bytes; break end end
+              to_items(scr)
+              App.toast(it.name .. L(" apagado. Livre: +") .. U.format_bytes(it.bytes), "ok")
+            end },
+            { label = L("CANCELAR") },
+          }, sel = 2 })
+      end },
+    } })
+end
+
 local function port_space()
   local Manifest = require("core.manifest")
   local Scan = require("core.scan")
@@ -728,6 +789,9 @@ function X.storage_category()
           return (m and m.ok) and string.format(I18N.tr(L("%s livres de %s")), U.format_bytes(m.avail), U.format_bytes(m.total)) or SysInfo.NA
         end }
     end
+    rows[#rows + 1] = { kind = "action", label = L("Gerenciador de espaço do cartão"), icon = "set_sdmaint",
+      desc = L("Os maiores jogos de todos os sistemas e os ports, com quantas vezes cada um foi jogado. Y mostra só os nunca jogados; X apaga a ROM escolhida (os saves ficam)."),
+      on_a = function() X.space_manager() end }
     rows[#rows + 1] = { kind = "action", label = L("Espaço ocupado pelos ports"),
       desc = L("Mede quanto cada port instalado ocupa no cartão SD. Somente leitura."), on_a = port_space }
     rows[#rows + 1] = { kind = "action", label = L("Cache de capas"),

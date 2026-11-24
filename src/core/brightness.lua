@@ -175,5 +175,50 @@ function B.method_label()
   return B.use_ctl and "brightnessctl" or "sysfs"
 end
 
+
+-- =============================================================================
+--  Knulli: brilho pelo knulli-brightness (o RG35XXH nao tem /sys/class/backlight;
+--  o Knulli usa o comando "brightness" por baixo). O valor escolhido e gravado
+--  em display.brightness, a chave que o menu do Knulli usa e que o
+--  /etc/init.d/S27brightness reaplica no boot. O hub nao guarda copia propria
+--  (o Knulli ja restaura; reaplicar um valor antigo desfaria o ajuste feito
+--  pelas teclas de atalho do sistema).
+-- =============================================================================
+if require("config").KNULLI then
+  local KH = require("core.knulli_hw")
+  B.read = function() return KH.brightness_get() end
+  B.detect = function()
+    B.checked = true
+    B.percent = KH.brightness_get()
+    B.available = B.percent ~= nil
+    B.reason = B.available and "" or L("o comando knulli-brightness não respondeu")
+    B.method = B.available and "knulli-brightness" or nil
+    U.log("brilho:", B.available and (L("ok, ") .. B.percent .. "%, knulli-brightness") or (L("indisponivel: ") .. B.reason))
+    return B.available
+  end
+  B.restore = function() end
+  B.load_pref = function() return tonumber(KH.get("display.brightness") or "") end
+  B.update = function(dt)
+    if not B.target then return true end
+    B.timer = B.timer - dt
+    if B.timer > 0 then return true end
+    B.timer = 0.12
+    local want = B.target
+    if B.percent == want then B.target = nil; return true end
+    if KH.brightness_set(want) and close_enough(KH.brightness_get(), want) then
+      B.percent = want
+      KH.brightness_save(want)
+      if B.target == want then B.target = nil end
+      return true
+    end
+    B.target = nil
+    B.available = false
+    B.reason = L("o sistema não aceitou o novo brilho (knulli-brightness)")
+    U.log("brilho: falha ao aplicar", want .. "%")
+    return false, B.reason
+  end
+  B.method_label = function() return "knulli-brightness" end
+end
+
 B.MIN, B.MAX = MIN, MAX
 return B

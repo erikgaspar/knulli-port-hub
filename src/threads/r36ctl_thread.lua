@@ -1,6 +1,7 @@
 -- =============================================================================
 --  R36 Control (thread): consultas e alteracoes sem travar a tela.
 --  job.op = "status" | "led" | "gamma" | "path" | "volume" | "delete"
+--  Knulli: "pwrled" | "audio" | "kvolume" | "temp"
 -- =============================================================================
 require("love.timer")
 local out_name, job = ...
@@ -16,11 +17,16 @@ local ok, err = pcall(function()
   elseif job.op == "path" then r.ok, r.why = R.set_path(job.value)
   elseif job.op == "volume" then r.ok, r.why = R.set_boot_volume(job.value)
   elseif job.op == "delete" then r.ok, r.why = R.delete_config()
+  -- Knulli (core/r36ctl.lua, ramo R.knulli)
+  elseif job.op == "pwrled" and R.knulli then r.ok, r.why = R.set_power_led(job.value)
+  elseif job.op == "audio" and R.knulli then r.ok, r.why = R.set_audio(job.value)
+  elseif job.op == "kvolume" and R.knulli then r.ok, r.why = R.set_volume(job.value)
+  elseif job.op == "temp" and R.knulli then r.ok, r.why = R.set_temperature(job.value)
   end
   local s = R.status()
   -- descricoes ja no idioma (a thread tem o proprio I18N)
   s.desc = {}
-  for _, n in ipairs(s.profiles) do s.desc[n] = R.describe(n) end
+  for _, n in ipairs(s.profiles or {}) do s.desc[n] = R.describe(n) end
   if s.active then s.desc[s.active] = R.describe(s.active) end
   r.status = s
 end)

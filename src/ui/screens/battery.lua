@@ -10,9 +10,13 @@ local T = require("ui.theme")
 local G = require("ui.gfx")
 local U = require("lib.util")
 local Battery = require("core.battery")
+local C = require("config")
 
 local S = {}
 local INTERVAL = 5
+-- valores de "health" do kernel (ABI power_supply)
+local HEALTH = { good = L("Boa"), overheat = L("Superaquecida"), dead = L("Esgotada"), ["over voltage"] = L("Sobretensão"),
+  cold = L("Fria demais"), ["unspecified failure"] = L("Falha"), unknown = L("Desconhecida") }
 
 function S:enter()
   self.samples = {}
@@ -29,6 +33,8 @@ function S:read()
   end
   self.snap = snap
   self.v = snap.ok and Battery.values(snap) or nil
+  -- Knulli (axp2202): o driver tambem informa a autonomia (time_to_empty_now, em s)
+  self.tte = (C.KNULLI and snap.dir) and tonumber(U.trim(U.read_file(snap.dir .. "/time_to_empty_now") or "")) or nil
   if self.v then
     local charging = self.v.status == "charging" or (self.v.status ~= "discharging" and self.v.charger == true)
     if charging and self.v.pct then
@@ -112,6 +118,24 @@ function S:draw()
   row(L("Nível atual"), string.format("%d%%", v.pct))
   row(L("Estado"), I18N.tr(STATUS[v.status] or STATUS.unknown))
   row(L("Tensão atual"), v.voltage and ((string.format("%.2f V", v.voltage):gsub("%.", I18N.lang == "en" and "." or ","))) or nil)
+  if C.KNULLI then
+    -- axp2202 (RG35XXH): sem corrente; o driver informa saude e temperatura.
+    -- energy_full_design vem com o mesmo numero da carga (uAh), entao a
+    -- "capacidade nominal" ficaria com unidade errada: mostra saude/temperatura.
+    local h = snap.raw.health
+    row(L("Saúde"), h and (I18N.tr(HEALTH[h:lower()] or h)) or nil, h == "Good" and T.c.green or nil)
+    local t = tonumber(snap.raw.temp or "")
+    row(L("Temperatura"), t and ((string.format("%.1f °C", t / 10):gsub("%.", I18N.lang == "en" and "." or ","))) or nil,
+      t and (t >= 450 and T.c.red or (t >= 400 and T.c.yellow or nil)) or nil)
+    local cap
+    if v.charge_full then cap = string.format("%d mAh", math.floor(v.charge_full + 0.5)) end
+    row(L("Capacidade identificada"), cap)
+    row(L("Carregador"), v.charger == true and L("Conectado") or (v.charger == false and L("Desconectado") or nil))
+    G.text_fit(T.f.small, L("Fonte: ") .. tostring(snap.dir), px + 12, 262, pw - 24, T.c.faint)
+    T.with_base_fonts(self.draw_estimate, self)
+    G.hints({ { "b", L("Voltar") } })
+    return
+  end
   row(L("Corrente"), v.current and string.format("%d mA", math.floor(v.current + 0.5)) or nil)
   local cap
   if v.charge_full then cap = string.format("%d mAh", math.floor(v.charge_full + 0.5))
@@ -146,6 +170,11 @@ function S:draw_estimate()
     line(I18N.tr(L("A bateria está completa (100%).")), T.c.green, T.f.bodyb)
   elseif e.kind == "not_charging" then
     line(I18N.tr(L("Não há carga em andamento: conecte o carregador para ver a estimativa.")), T.c.text, T.f.bodyb)
+    -- Knulli (axp2202): o driver tambem informa a autonomia (time_to_empty_now)
+    local tte = self.tte
+    if tte and tte > 0 then
+      line(I18N.tr(L("Autonomia informada pelo sistema: ")) .. fmt_time(tte), T.c.text)
+    end
   elseif e.kind == "kernel" or e.kind == "current" or e.kind == "observed" then
     line(I18N.tr(L("Tempo estimado restante: ")) .. fmt_time(e.secs), T.c.text, T.f.h3)
     line(string.format(I18N.tr(L("Bateria atual: %d%%  •  Carregamento: ativo")), v.pct), T.c.text)

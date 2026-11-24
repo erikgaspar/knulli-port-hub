@@ -48,6 +48,13 @@ function I.collect()
   -- sistema
   local osr = U.read_file("/etc/os-release") or ""
   r.os = nz(osr:match('PRETTY_NAME="([^"]+)"') or osr:match("PRETTY_NAME=([^\n]+)"))
+  -- Knulli: o os-release e o do Batocera (base); a versao do Knulli vem do proprio sistema
+  if C.KNULLI then
+    local KH = require("core.knulli_hw")
+    local d = KH.device()
+    r.knulli = d
+    r.os = KH.version_label(d.version) .. ((r.os ~= NA) and ("  •  " .. L("base ") .. r.os) or "")
+  end
   r.kernel = nz(first_line(U.capture("uname -r 2>/dev/null")))
   r.arch = nz(first_line(U.capture("uname -m 2>/dev/null")))
   local model = U.read_file("/proc/device-tree/model")

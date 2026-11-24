@@ -120,6 +120,20 @@ if base then
     end
   end
 end
+-- Knulli: o proprio sistema informa a placa (/boot/boot/knulli.board), o chip
+-- (/usr/share/knulli/knulli.arch), a versao e os recursos da placa. A Device
+-- Tree do H700 diz "allwinner,h616" (mesma familia), por isso o chip vem do Knulli.
+if os.getenv("PORTHUB_FW") == "knulli" then
+  local okk, KH = pcall(require, "core.knulli_hw")
+  if okk then
+    local d = KH.device()
+    info.knulli = { board = d.board, arch = d.arch, version = d.version, caps = d.caps }
+    if d.arch then info.soc = d.arch end
+    info.model = info.model or d.model
+    -- o os-release e o do Batocera (base): o firmware e o Knulli
+    info.firmware = KH.version_label(d.version)
+  end
+end
 
 -- 5) tela: modo ativo informado pelo driver (DRM)
 step(5)
@@ -134,6 +148,12 @@ for _, n in ipairs(ls("/sys/class/drm")) do
     end
   end
 end
+-- Knulli (H700): sem DRM; o modo ativo vem do framebuffer (ex.: "U:640x480p-59")
+if not info.drm_res and info.knulli then
+  local m = line1(rd("/sys/class/graphics/fb0/modes"))
+  info.drm_res = m and m:match("(%d+x%d+)") or nil
+  if info.drm_res then info.connector = "fb0" end
+end
 
 -- 6) bateria (somente o que o kernel informar)
 step(6)
@@ -146,6 +166,8 @@ for _, n in ipairs(ls("/sys/class/power_supply")) do
     local v = tonumber(line1(rd(dir .. "/voltage_now")))
     if v and v > 0 then b.voltage = v > 1000 and v / 1000000 or v end
     local cf = tonumber(line1(rd(dir .. "/charge_full_design")))
+    -- Knulli (axp2202): so ha charge_full (capacidade configurada no driver)
+    if not cf and info.knulli then cf = tonumber(line1(rd(dir .. "/charge_full"))) end
     if cf and cf > 0 then b.design_mah = math.floor(cf / 1000 + 0.5) end
     info.battery = b
     break

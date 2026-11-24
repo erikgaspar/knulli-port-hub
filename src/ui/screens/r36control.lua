@@ -241,4 +241,215 @@ function S:draw()
   G.hints({ { "dpad", L("Navegar") }, { "a", L("Selecionar") }, { "b", L("Voltar") } })
 end
 
+-- =============================================================================
+--  Knulli: mesmos ajustes, com as ferramentas do Knulli (core/r36ctl.lua, ramo
+--  R.knulli). LED de energia, saida de audio, volume e temperatura de cor da
+--  tela; gravados nas chaves do menu do Knulli. LED de bateria por perfis, gama
+--  e /etc/r36_config.ini sao do dArkOS e nao existem aqui.
+-- =============================================================================
+if require("config").KNULLI then
+  local K = {}
+  K.job, K.update, K.result = S.job, S.update, S.result
+  local KWHY = {
+    invalid = L("Valor inválido."),
+    fail = L("O comando do Knulli não aceitou o ajuste."),
+    unsupported = L("Este aparelho não tem esse recurso."),
+  }
+
+  local function sink_label(s)
+    if not s then return "?" end
+    if s.kind == "auto" then return L("Automático (HDMI quando conectado)") end
+    if s.kind == "internal" then return L("Alto-falante / fone de ouvido") end
+    if s.kind == "hdmi" then return L("HDMI") end
+    if s.kind == "bt" then return L("Bluetooth: ") .. (s.desc or s.id) end
+    return s.desc ~= "" and s.desc or s.id
+  end
+  local function find_sink(st, id)
+    for _, s in ipairs(st.sinks or {}) do if s.id == id then return s end end
+  end
+
+  function K:enter()
+    self.sel, self.view = 1, nil
+    self:job("status", nil, function() self:sync() end)
+  end
+
+  --- valores escolhidos na tela partem do estado lido
+  function K:sync()
+    local st = self.st
+    if not st then return end
+    self.vol = st.volume or st.volume_saved or 50
+    self.temp = st.temperature or 50
+  end
+
+  function K:rows()
+    local st, r = self.st, {}
+    if st.pwrled then r[#r + 1] = "pwrled" end
+    r[#r + 1] = "audio"
+    r[#r + 1] = "volume"
+    if st.temp_cap then r[#r + 1] = "temp" end
+    if st.rgb then r[#r + 1] = "rgb" end
+    r[#r + 1] = "view"
+    return r
+  end
+
+  function K:kresult(m, okmsg)
+    if m.ok then App.toast(okmsg, "ok")
+    else
+      App.show_dialog({ title = L("Não aplicado"), kind = "error",
+        body = KWHY[m.why] and I18N.tr(KWHY[m.why]) or tostring(m.why) })
+    end
+    self:sync()
+  end
+
+  function K:pick_audio()
+    local st, btns, sel = self.st, {}, 1
+    for i, s in ipairs(st.sinks or {}) do
+      if s.id == st.audio then sel = i end
+      btns[#btns + 1] = { label = sink_label(s), sub = s.id .. ((s.id == st.audio) and ("  •  " .. I18N.tr(L("ATUAL"))) or ""),
+        fn = function()
+          self:job("audio", { value = s.id }, function(m) self:kresult(m, L("Saída de áudio alterada.")) end)
+        end }
+    end
+    if #btns == 0 then App.toast(L("O Knulli não listou nenhuma saída de áudio."), "warn"); return end
+    btns[#btns + 1] = { label = L("Voltar") }
+    App.show_dialog({ title = L("Saída de áudio"), kind = "info", list = true,
+      body = L("Aplica na hora e fica salva (mesma opção do menu de som do Knulli)."), buttons = btns, sel = sel })
+  end
+
+  function K:action(act)
+    if self.view then
+      local maxtop = math.max(0, #self.view - 14)
+      if act == "b" or act == "a" then self.view = nil
+      elseif act == "up" then self.vtop = math.max(0, self.vtop - 1)
+      elseif act == "down" then self.vtop = math.min(maxtop, self.vtop + 1) end
+      return
+    end
+    if act == "b" then App.pop(); return end
+    local st = self.st
+    if not st then return end
+    local rows = self:rows()
+    local n = #rows
+    self.sel = math.max(1, math.min(self.sel, n))
+    local r = rows[self.sel]
+    if act == "up" then self.sel = (self.sel - 2) % n + 1; return end
+    if act == "down" then self.sel = self.sel % n + 1; return end
+    if self.busy then if act == "a" then App.toast(L("Aguarde a operação atual terminar."), "info") end return end
+    if act == "left" or act == "right" then
+      local d = act == "left" and -5 or 5
+      if r == "volume" then
+        self.vol = math.max(0, math.min(st.volume_max or 100, math.floor(((self.vol or 50) + d) / 5 + 0.5) * 5))
+      elseif r == "temp" then
+        self.temp = math.max(0, math.min(100, (self.temp or 50) + d))
+      elseif r == "pwrled" then
+        self:job("pwrled", { value = not st.power_led }, function(m)
+          self:kresult(m, (not st.power_led) and L("LED de energia ligado.") or L("LED de energia desligado."))
+        end)
+      end
+      return
+    end
+    if act ~= "a" then return end
+    if r == "pwrled" then
+      self:job("pwrled", { value = not st.power_led }, function(m)
+        self:kresult(m, (not st.power_led) and L("LED de energia ligado.") or L("LED de energia desligado."))
+      end)
+    elseif r == "audio" then self:pick_audio()
+    elseif r == "volume" then
+      local v = self.vol
+      if v == st.volume and v == st.volume_saved then App.toast(L("Use esquerda/direita para escolher outro valor."), "info"); return end
+      self:job("kvolume", { value = v }, function(m)
+        self:kresult(m, string.format(I18N.tr(L("Volume: %d%% (aplicado e salvo para o próximo boot).")), v))
+      end)
+    elseif r == "temp" then
+      local v = self.temp
+      if v == st.temperature then App.toast(L("Use esquerda/direita para escolher outro valor."), "info"); return end
+      self:job("temp", { value = v }, function(m)
+        self:kresult(m, string.format(I18N.tr(L("Temperatura de cor: %d (aplicada e salva).")), v))
+      end)
+    elseif r == "rgb" then
+      App.show_dialog({ title = L("LED RGB"), kind = "info",
+        body = L("Os efeitos, cores e brilho do LED RGB ficam no menu do Knulli (Configurações do sistema > LED). O hub não altera esses ajustes.") })
+    elseif r == "view" then
+      local lines = st.config_lines
+      if not lines or #lines == 0 then lines = { I18N.tr(L("Arquivo de configuração não encontrado.")) } end
+      self.view, self.vtop = lines, 0
+    end
+  end
+
+  function K:draw()
+    G.header(L("Ajustes do console (R36 Control)"))
+    local x, w = 12, T.W - 24
+    local st = self.st
+    if not st then
+      G.text(T.f.body, L("Lendo a configuração do sistema..."), x, 200, T.c.dim, "center", w)
+      return
+    end
+    if self.view then
+      G.panel(x, 50, w, 384, { bg = T.c.bg1 })
+      G.text(T.f.pix8, "/userdata/system/knulli.conf", x + 14, 60, T.c.accent2)
+      for i = self.vtop + 1, math.min(#self.view, self.vtop + 14) do
+        G.text_fit(T.f.small, self.view[i], x + 14, 80 + (i - self.vtop - 1) * 24, w - 28, T.c.text)
+      end
+      G.hints({ { "dpad", L("Rolar") }, { "b", L("Voltar") } })
+      return
+    end
+    -- topo: aparelho e o que nao existe no Knulli
+    local d = st.device or {}
+    G.panel(x, 50, w, 58, { bg = T.c.bg1 })
+    G.text_fit(T.f.bodyb, (d.model or I18N.tr(L("modelo não informado"))) .. (d.board and ("  •  " .. d.board) or ""), x + 14, 58, w - 28, T.c.text)
+    local miss = st.pwrled and L("Gama e perfis do LED de bateria são do dArkOS: não existem no Knulli.")
+      or L("Gama, LED de bateria e LED de energia não existem neste aparelho/sistema.")
+    G.text_fit(T.f.small, miss, x + 14, 82, w - 28, T.c.dim)
+    local rows = self:rows()
+    self.sel = math.max(1, math.min(self.sel, #rows))
+    local y, RH = 116, 44
+    for i, r in ipairs(rows) do
+      local on = i == self.sel
+      G.rect(x, y, w, RH - 4, on and T.c.bg3 or T.c.bg1, 7)
+      if on then G.frame(x, y, w, RH - 4, T.c.accent, 7, 2) end
+      local label, value
+      if r == "pwrled" then
+        label = L("LED de energia")
+        value = st.power_led and L("Ligado") or L("Desligado")
+      elseif r == "audio" then
+        local s = find_sink(st, st.audio)
+        label, value = L("Saída de áudio"), s and sink_label(s) or tostring(st.audio)
+      elseif r == "volume" then
+        label = L("Volume do sistema")
+        value = tostring(self.vol or "?") .. "%"
+        if self.vol ~= st.volume then value = value .. "  •  " .. I18N.tr(L("A aplica")) .. "  (" .. I18N.tr(L("atual: ")) .. tostring(st.volume or "?") .. "%)" end
+      elseif r == "temp" then
+        label = L("Temperatura de cor da tela")
+        value = tostring(self.temp) .. ((self.temp == 50) and ("  (" .. I18N.tr(L("padrão")) .. ")") or "")
+        if self.temp ~= st.temperature then value = value .. "  •  " .. I18N.tr(L("A aplica")) .. "  (" .. I18N.tr(L("atual: ")) .. tostring(st.temperature) .. ")" end
+      elseif r == "rgb" then label, value = L("LED RGB"), L("Ajustado pelo menu do Knulli")
+      elseif r == "view" then label, value = L("Ver configuração atual"), "" end
+      G.text(T.f.bodyb, label, x + 16, y + 4, on and T.c.text or T.c.dim)
+      G.text_fit(T.f.small, value, x + 16, y + 22, w - 60, on and T.c.accent2 or T.c.faint)
+      local arrows = on and (r == "volume" or r == "temp" or r == "pwrled")
+      G.color(on and T.c.accent or T.c.faint)
+      local ax, ay = x + w - 22, y + 20
+      if arrows then
+        lg.polygon("fill", ax - 14, ay, ax - 8, ay - 5, ax - 8, ay + 5)
+        lg.polygon("fill", ax + 6, ay, ax, ay - 5, ax, ay + 5)
+      else
+        lg.polygon("fill", ax, ay - 5, ax, ay + 5, ax + 6, ay)
+      end
+      y = y + RH
+    end
+    local desc = ({
+      pwrled = L("Liga ou desliga o LED de energia. Fica salvo e vale também depois de reiniciar."),
+      audio = L("Escolhe por onde o som sai. Automático usa o HDMI quando ele está conectado."),
+      volume = L("Esquerda/direita escolhe, A aplica. O Knulli liga com o último volume usado."),
+      temp = L("Esquerda/direita escolhe (0 a 100, 50 = padrão), A aplica. Fica salvo."),
+      rgb = L("Este aparelho tem LED RGB: os ajustes ficam no menu do Knulli."),
+      view = L("Mostra as linhas de áudio, tela e LED do /userdata/system/knulli.conf."),
+    })[rows[self.sel]]
+    if self.busy and self.busy.op ~= "status" then desc = L("Aplicando...") end
+    G.text_fit(T.f.small, desc, x + 4, 384, w - 8, self.busy and T.c.yellow or T.c.dim)
+    G.hints({ { "dpad", L("Navegar") }, { "a", L("Selecionar") }, { "b", L("Voltar") } })
+  end
+
+  return K
+end
+
 return S

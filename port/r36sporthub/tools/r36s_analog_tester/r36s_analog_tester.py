@@ -46,6 +46,42 @@ NAV_DOWN = (('K', 0x221), ('H', HAT_Y, 1))
 TRIG_SELECT, TRIG_START, TRIG_L3, TRIG_R3, TRIG_FN = 0x2c0, 0x2c1, 0x2c2, 0x2c3, 0x2c4
 START_ANY, SELECT_ANY = (START, TRIG_START), (SELECT, TRIG_SELECT)
 NAV_OK = (('K', SOUTH), ('K', EAST), ('K', START), ('K', TRIG_START))
+BTN_L3, BTN_R3 = 0x13d, 0x13e
+FN_KEYS = [TRIG_FN]          # botao FN (R36S: so como TRIG5)
+FN_LABEL = 'FN'
+DEVICE_NAME = 'R36S'
+
+# Knulli (ex.: Anbernic RG35XXH, H700): o launcher do hub exporta PORTHUB_FW=knulli.
+# Codigos evdev do "Anbernic RG35XX-H Controller" (/dev/input/event1):
+#   A=0x130 B=0x131 Y=0x132 X=0x133 L1=0x134 R1=0x135 SELECT=0x136 START=0x137
+#   MENU=0x138 L3=0x139 L2=0x13a R2=0x13b R3=0x13c; direcional = HAT0X/HAT0Y;
+#   analogicos = ABS_Z/ABS_RX (esquerdo) e ABS_RY/ABS_RZ (direito), -4096..4096.
+# Mesma disposicao impressa do R36S (X em cima, A a direita, B embaixo, Y a esquerda).
+KNULLI = os.environ.get('PORTHUB_FW') == 'knulli'
+if KNULLI:
+    FACE_LAYOUT = {0x130: 'A', 0x131: 'B', 0x132: 'Y', 0x133: 'X'}
+    KEYNAMES = {
+        0x130: 'BOTÃO A', 0x131: 'BOTÃO B', 0x132: 'BOTÃO Y', 0x133: 'BOTÃO X',
+        0x134: 'L1', 0x135: 'R1', 0x136: 'SELECT', 0x137: 'START', 0x138: 'MENU',
+        0x139: 'L3', 0x13a: 'L2', 0x13b: 'R2', 0x13c: 'R3',
+        0x220: 'DPAD CIMA', 0x221: 'DPAD BAIXO', 0x222: 'DPAD ESQ', 0x223: 'DPAD DIR',
+    }
+    KEYICONS = {
+        0x130: ('face', 'A'), 0x131: ('face', 'B'), 0x132: ('face', 'Y'), 0x133: ('face', 'X'),
+        0x134: ('pill', 'L1'), 0x135: ('pill', 'R1'), 0x13a: ('pill', 'L2'), 0x13b: ('pill', 'R2'),
+        0x136: ('pill', 'SELECT'), 0x137: ('pill', 'START'), 0x138: ('pill', 'MENU'),
+        0x139: ('stick', 'L3'), 0x13c: ('stick', 'R3'),
+        0x220: ('dpad', 'U'), 0x221: ('dpad', 'D'), 0x222: ('dpad', 'L'), 0x223: ('dpad', 'R'),
+    }
+    SOUTH, EAST, NORTH, WEST = 0x131, 0x130, 0x133, 0x132
+    BTN_A, BTN_B = 0x130, 0x131
+    SELECT, START, L1, R1, L2, R2 = 0x136, 0x137, 0x134, 0x135, 0x13a, 0x13b
+    BTN_L3, BTN_R3 = 0x139, 0x13c
+    FN_KEYS = [0x138]
+    FN_LABEL = 'MENU'
+    DEVICE_NAME = 'console'
+    START_ANY, SELECT_ANY = (START,), (SELECT,)
+    NAV_OK = (('K', SOUTH), ('K', EAST), ('K', START))
 
 
 def ioc_read(nr, size):
@@ -1043,7 +1079,7 @@ def draw_splash(c, state, devs, now):
             y += 16
         y += gap
 
-    para('Ferramenta desenvolvida para testar e diagnosticar os analógicos do R36S de forma simples e rápida.')
+    para('Ferramenta desenvolvida para testar e diagnosticar os analógicos do %s de forma simples e rápida.' % DEVICE_NAME)
     para('O software permite verificar o funcionamento dos controles, identificar possíveis problemas de leitura, '
          'testar os movimentos dos analógicos e observar se os valores estão respondendo corretamente em todas '
          'as direções.')
@@ -1058,7 +1094,7 @@ def draw_splash(c, state, devs, now):
     c.text('Desenvolvido por LagdoLira', X, y + 2, ORANGE)
     draw_gamepad(c, X + 8 * 27, y - 1)
     y += 26
-    para('Uma ferramenta simples, feita para quem quer verificar rapidamente a saúde dos analógicos do seu R36S.',
+    para('Uma ferramenta simples, feita para quem quer verificar rapidamente a saúde dos analógicos do seu %s.' % DEVICE_NAME,
          DIM)
     c.text('Pressione qualquer botão para continuar', 320, 462, GREEN if int(now * 2) % 2 else DIM, 1, True)
 
@@ -1197,8 +1233,8 @@ SLOTS = {
     'L': [('K', 0x222), ('H', HAT_X, -1)], 'R': [('K', 0x223), ('H', HAT_X, 1)],
     'A': _face('A'), 'B': _face('B'), 'X': _face('X'), 'Y': _face('Y'),
     'SELECT': [('K', SELECT), ('K', TRIG_SELECT)], 'START': [('K', START), ('K', TRIG_START)],
-    'L3': [('K', 0x13d), ('K', TRIG_L3)], 'R3': [('K', 0x13e), ('K', TRIG_R3)],
-    'FN': [('K', TRIG_FN)],
+    'L3': [('K', BTN_L3), ('K', TRIG_L3)], 'R3': [('K', BTN_R3), ('K', TRIG_R3)],
+    'FN': [('K', c) for c in FN_KEYS],
 }
 SLOT_KEYS = {k for v in SLOTS.values() for k in v}
 BODY, BODY_EDGE, SCREEN = (24, 27, 38), (52, 56, 74), (8, 10, 14)
@@ -1298,7 +1334,7 @@ def draw_buttons_basic(c, state, devs, now):
     sh_stick(c, 536, 330, sticks[1] if len(sticks) > 1 else None, L('R3'), 'R3')
     # SELECT / FN / START embaixo da tela
     sh_pill(c, 252, 346, 76, 26, L('SELECT'), 'SELECT')
-    sh_pill(c, 320, 346, 48, 26, L('FN'), 'FN')
+    sh_pill(c, 320, 346, 48 if FN_LABEL == 'FN' else 56, 26, L('FN'), FN_LABEL)
     sh_pill(c, 388, 346, 76, 26, L('START'), 'START')
 
     # botoes extras que nao fazem parte do layout (HOTKEY, BTN C, ...)
@@ -1320,7 +1356,7 @@ def draw_buttons_basic(c, state, devs, now):
 
 
 SLOT_NAMES = {'U': 'D-PAD CIMA', 'D': 'D-PAD BAIXO', 'L': 'D-PAD ESQUERDA', 'R': 'D-PAD DIREITA',
-              'A': 'BOTÃO A', 'B': 'BOTÃO B', 'X': 'BOTÃO X', 'Y': 'BOTÃO Y'}
+              'A': 'BOTÃO A', 'B': 'BOTÃO B', 'X': 'BOTÃO X', 'Y': 'BOTÃO Y', 'FN': FN_LABEL}
 STICK_SRC = {'L3': (167, 315), 'R3': (407, 315)}  # centro dos analogicos na ilustracao (PNG original)
 LEGEND = (('Pendente', ORANGE), ('Testado OK', GREEN), ('Chatter', YELLOW), ('Preso', RED))
 
@@ -1503,7 +1539,7 @@ def run_text(state, devs):
         out.write('\033[H\033[2J')
         out.write('R36S Analog Tester (modo texto) - por LagdoLira\r\n\r\n')
         if state.screen == 'splash':
-            out.write('Teste de analógicos e botões do R36S.\r\nPressione qualquer botão...\r\n')
+            out.write('Teste de analógicos e botões do %s.\r\nPressione qualquer botão...\r\n' % DEVICE_NAME)
         elif state.screen == 'menu':
             for i, m in enumerate(MENU_ITEMS):
                 out.write('%s %s\r\n' % ('>' if i == state.menu_idx else ' ', m))

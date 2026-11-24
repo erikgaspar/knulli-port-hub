@@ -35,6 +35,9 @@ M.CLASSES = {
     text = L("As informações coletadas apontam para outro modelo de console.") },
   unknown = { label = L("Modelo não identificado"), color = "dim",
     text = L("Não existem informações suficientes para identificar o aparelho.") },
+  -- Knulli: o modelo vem do proprio sistema (placa + Device Tree)
+  knulli = { label = L("Aparelho identificado pelo Knulli"), color = "green",
+    text = L("O Knulli informa a placa deste aparelho e a Device Tree carregada confirma o modelo. A comparação com placas e clones catalogados não é usada aqui.") },
 }
 M.CONF = { alta = L("Alta"), media = L("Média"), baixa = L("Baixa"), insuficiente = L("Insuficiente para identificação") }
 
@@ -77,8 +80,31 @@ function M.ram_label(mem_kb)
   return txt
 end
 
+--- Knulli: sem comparar com a base do R36S. O modelo e o da Device Tree
+--- (o Knulli escolhe o DTB pela placa) e a placa e a que o Knulli informa.
+local function classify_knulli(info)
+  local k = info.knulli or {}
+  local r = { time = info.time or os.time(), diffs = {}, evidence = {}, notes = {}, knulli = true }
+  r.model = info.model or (k.board and k.board:upper()) or nil
+  r.board = k.board
+  if info.model then r.evidence[#r.evidence + 1] = L("Device Tree carregada: ") .. info.model .. "." end
+  if k.board then r.evidence[#r.evidence + 1] = L("Placa informada pelo Knulli: ") .. k.board .. "." end
+  if k.arch then r.evidence[#r.evidence + 1] = L("Processador informado pelo Knulli: ") .. k.arch:upper() .. "." end
+  if k.version then r.evidence[#r.evidence + 1] = L("Sistema: ") .. require("core.knulli_hw").version_label(k.version) .. "." end
+  if r.model then
+    r.class = "knulli"
+    r.conf = (info.model and k.board) and "alta" or "media"
+  else
+    r.class, r.conf = "unknown", "insuficiente"
+  end
+  r.notes[#r.notes + 1] = L("O Knulli usa a Device Tree certa para a placa escolhida na instalação do sistema.")
+  r.firmware_note = L("O modelo vem do hardware informado pelo sistema, não do nome do firmware.")
+  return r
+end
+
 --- Compara e classifica. Devolve o resultado (tabela simples, salva em JSON).
 function M.classify(info)
+  if info.knulli then return classify_knulli(info) end
   local db = M.load_db()
   local ref = db.reference or {}
   local r = { time = info.time or os.time(), diffs = {}, evidence = {}, notes = {} }
@@ -214,6 +240,13 @@ end
 function M.quick_detect(model, hardware)
   model = model and U.trim(model) or nil
   hardware = hardware and U.trim(hardware) or nil
+  -- Knulli: placa informada pelo sistema (/boot/boot/knulli.board)
+  if C.KNULLI then
+    local board = U.trim((U.read_file("/boot/boot/knulli.board") or ""):match("^[^\n]*") or "")
+    local name = (model and model ~= "") and model or (board ~= "" and board:upper()) or nil
+    if not name then return nil end
+    return { name = name, board = board ~= "" and board or nil, kind = "knulli", known = board ~= "" }
+  end
   if (not model or model == "") and (not hardware or hardware == "") then return nil end
   for _, b in ipairs(M.load_db().boards or {}) do
     local m = b.match or {}
@@ -270,6 +303,21 @@ function M.sections(info)
       .. (info.battery.design_mah and (info.battery.design_mah .. " mAh  ") or "")
       .. (info.battery.voltage and string.format(L("%.2f V"), info.battery.voltage) or "")) or NA() },
   } }
+  -- Knulli (H700): a Device Tree nao traz sequencia de painel; as duas linhas so
+  -- mostrariam "nao identificado"
+  if info.knulli and not info.panel_sha1 then
+    table.remove(s[#s].rows, 3)
+    table.remove(s[#s].rows, 2)
+  end
+  if info.knulli then
+    local k = info.knulli
+    s[#s + 1] = { title = L("KNULLI"), rows = {
+      { L("Placa (Knulli)"), v(k.board) },
+      { L("Chip (Knulli)"), k.arch and k.arch:upper() or NA() },
+      { L("Versão do Knulli"), k.version and require("core.knulli_hw").version_label(k.version) or NA() },
+      { L("Recursos da placa"), (k.caps and #k.caps > 0) and table.concat(k.caps, ", ") or NA() },
+    } }
+  end
   local disks = {}
   for _, d in ipairs(info.disks or {}) do
     disks[#disks + 1] = d.dev .. " (" .. (d.type == "MMC" and L("memória interna") or (d.type == "SD" and L("cartão SD") or (d.type or "?")))
@@ -287,7 +335,7 @@ end
 function M.report_text(info, r)
   local cls = M.CLASSES[r.class] or M.CLASSES.unknown
   local t = {}
-  t[#t + 1] = "R36S PORT HUB " .. C.VERSION .. " - " .. L("ANALISADOR DE CONSOLE")
+  t[#t + 1] = (C.KNULLI and "Knulli Port Hub " or "R36S PORT HUB ") .. C.VERSION .. " - " .. L("ANALISADOR DE CONSOLE")
   t[#t + 1] = L("Data da análise: ") .. os.date("%d/%m/%Y %H:%M:%S", r.time)
   t[#t + 1] = ""
   t[#t + 1] = L("Modelo estimado: ") .. (r.model or L("não identificado"))

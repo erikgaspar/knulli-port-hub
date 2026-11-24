@@ -244,4 +244,43 @@ function R.cleanup_old_led_service()
     .. " && sudo -n systemctl daemon-reload >/dev/null 2>&1")
 end
 
+-- ---------------------------------------------------------------------------
+-- Knulli: nao ha R36 Control (/etc/r36_config.ini, batt_led.service, ogage,
+-- gama). Os equivalentes que existem no aparelho vem das ferramentas do
+-- proprio Knulli (core/knulli_hw.lua), gravando as mesmas chaves do menu dele:
+--   LED de energia (capacidade pwrled) -> system.power.led
+--   saida de audio -> audio.device     volume -> audio.volume
+--   temperatura de cor da tela -> system.display.temperature
+if require("config").KNULLI then
+  local KH = require("core.knulli_hw")
+  R.knulli = true
+  R.TEMPS = {}
+  for v = 0, 100, 5 do R.TEMPS[#R.TEMPS + 1] = v end
+
+  R.status = function()
+    local s = { available = true, knulli = true, profiles = {} }
+    s.device = KH.device()
+    s.pwrled = KH.cap("pwrled") and KH.has("knulli-power-led")
+    s.power_led = KH.power_led_get()
+    s.rgb = KH.cap("rgb")
+    s.sinks = KH.audio_list()
+    s.audio = KH.audio_get()
+    s.volume = KH.volume_get()
+    s.volume_saved = tonumber(KH.get("audio.volume") or "")
+    s.volume_max = KH.volume_max()
+    s.temp_cap = KH.display_caps().temperature == true
+    s.temperature = KH.temperature_get()
+    s.config_lines = KH.config_lines()
+    return s
+  end
+  R.set_power_led = function(on) return KH.power_led_set(on and true or false) end
+  R.set_audio = function(id) return KH.audio_set(id) end
+  R.set_volume = function(v) return KH.volume_set(v) end
+  R.set_temperature = function(v)
+    if not KH.display_caps().temperature then return false, "unsupported" end
+    return KH.temperature_set(v)
+  end
+  R.cleanup_old_led_service = function() end
+end
+
 return R
