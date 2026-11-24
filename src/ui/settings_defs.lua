@@ -699,6 +699,26 @@ D.LIST = {
   X.updates_category(), X.tools_category(runtimes_row), backup,
   X.diag_category(), X.about_category(),
 }
+-- Knulli: tira as opcoes que sao do dArkOS/R36S (o Knulli faz isso pelo proprio
+-- menu ou o hub mexeria em coisas do sistema). Compara pelo rotulo traduzido.
+if C.KNULLI then
+  local HIDE = {}
+  for _, k in ipairs({ "Temas do EmulationStation", "Brilho da tela", "Ajustes do console (R36 Control)",
+      "Gerenciar Wi-Fi", "Data e hora", "Analisador de Console", "Gerenciar PortMaster", "Atualizar runtimes",
+      "Otimizador e manutenção do microSD", "Verificador do cartão SD", "Atualização via rede",
+      "Aviso de nova versão do hub", "Testar analógicos e botões", "Teste completo com relatório",
+      "Todos os testes de controles", "Último relatório" }) do HIDE[L(k)] = true end
+  local function keep(rows)
+    local out = {}
+    for _, r in ipairs(rows or {}) do if not HIDE[r.label] then out[#out + 1] = r end end
+    return out
+  end
+  for _, c in ipairs(D.LIST) do
+    local r = c.rows
+    if type(r) == "function" then c.rows = function(...) return keep(r(...)) end
+    elseif type(r) == "table" then c.rows = keep(r) end
+  end
+end
 D.BY_ID = {}
 for _, c in ipairs(D.LIST) do D.BY_ID[c.id] = c end
 

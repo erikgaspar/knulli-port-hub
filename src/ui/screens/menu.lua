@@ -37,6 +37,11 @@ local ITEMS = {
 if C.OS_MODE then
   ITEMS[#ITEMS] = { id = "exit", label = L("Energia"), sub = L("Desligar, reiniciar ou reabrir a interface"), icon = "exit" }
 end
+-- Knulli: a Biblioteca abre jogos pelos comandos do es_systems do dArkOS (no
+-- Knulli os jogos abrem pelo emulatorlauncher) -> fica de fora
+if C.KNULLI then
+  for i = #ITEMS, 1, -1 do if ITEMS[i].id == "library" then table.remove(ITEMS, i) end end
+end
 
 -- Vitrine EM DESTAQUE: so itens marcados no catalogo ("featured": true),
 -- jogos e utilitarios na mesma sequencia, na ordem do catalogo (ou pela

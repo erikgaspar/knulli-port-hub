@@ -33,10 +33,20 @@ function I.set(lang)
   load_dict(lang)
 end
 
+-- Knulli Port Hub: mesmo app, outro nome e outro console (troca so o texto exibido)
+local KNULLI = os.getenv("PORTHUB_FW") == "knulli"
+local function brand(s)
+  if not KNULLI or type(s) ~= "string" or not s:find("R36", 1, true) then return s end
+  s = s:gsub("R36S PORT HUB", "Knulli Port Hub"):gsub("R36S Port Hub", "Knulli Port Hub")
+  s = s:gsub(" %(R36 Control%)", ""):gsub("R36 Control", "Knulli"):gsub("R36S", "console")
+  return s
+end
+I.brand = brand
+
 function I.L(s)
-  if I.lang == "pt-BR" or type(s) ~= "string" then return s end
+  if I.lang == "pt-BR" or type(s) ~= "string" then return brand(s) end
   local d = I.dicts[I.lang] or load_dict(I.lang)
-  return d[s] or s
+  return brand(d[s] or s)
 end
 
 -- maiusculas com acentos e cirilico (sem depender de ui/gfx)
@@ -98,6 +108,12 @@ function I.tr(s)
     if t ~= base then return t .. suf end
   end
   return s
+end
+
+-- Knulli: o texto desenhado tambem passa pela troca de nome
+if KNULLI then
+  local raw_tr = I.tr
+  I.tr = function(s) return brand(raw_tr(s)) end
 end
 
 return I

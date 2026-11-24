@@ -62,6 +62,8 @@ function B.detect_dir(force)
   local env = os.getenv("PORTHUB_BIOS_DIR")
   if env and env ~= "" then
     info.dir, info.source = env, L("teste (PORTHUB_BIOS_DIR)")
+  elseif C.KNULLI and U.is_dir("/userdata/bios") then
+    info.dir, info.source = "/userdata/bios", L("padrão do Knulli")
   else
     local cfgs = {}
     local envcfg = os.getenv("PORTHUB_RA_CFG")

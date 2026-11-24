@@ -1,7 +1,7 @@
 function love.conf(t)
   t.identity = "r36sporthub"
   t.version = "11.5"
-  t.window.title = "R36S PORT HUB"
+  t.window.title = os.getenv("PORTHUB_FW") == "knulli" and "Knulli Port Hub" or "R36S PORT HUB"
   t.window.width = 0
   t.window.height = 0
   t.window.fullscreen = true

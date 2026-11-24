@@ -16,7 +16,9 @@ local C = require("config")
 
 local E = {}
 
-local SCRIPT = "R36S PORT HUB.sh"
+local SCRIPT = C.KNULLI and "Knulli Port Hub.sh" or "R36S PORT HUB.sh"
+local NAME = C.KNULLI and "Knulli Port Hub" or "R36S PORT HUB"
+local DEV = C.KNULLI and "Lag do Lira (adaptação para Knulli)" or "Comunidade R36S"
 local TAGS = {
   { "image", "./r36sporthub/cover.png" },
   { "thumbnail", "./r36sporthub/cover.png" },
@@ -24,7 +26,7 @@ local TAGS = {
   { "fanart", "./r36sporthub/fanart.png" },
 }
 
-local DESC = "Central de ports e ferramentas para o R36S: instale jogos e utilitários, transfira arquivos por FTP, gerencie o Wi-Fi, personalize temas e verifique o console."
+local DESC = C.KNULLI and "Central de ports e ferramentas para consoles com Knulli: instale jogos e utilitários, transfira arquivos por FTP, gerencie o Wi-Fi, personalize temas e verifique o console. Baseado no R36S PORT HUB, de Lag do Lira." or "Central de ports e ferramentas para o R36S: instale jogos e utilitários, transfira arquivos por FTP, gerencie o Wi-Fi, personalize temas e verifique o console."
 -- descricao antiga escrita pelo proprio hub (versoes anteriores): e trocada pela nova
 local OLD_DESC = "Loja de ports para o R36S: baixe e instale jogos e utilitários, acompanhe downloads, use o servidor FTP e gerencie o Wi-Fi."
 
@@ -36,11 +38,11 @@ local function entry(nl)
   local t = {
     "\t<game>",
     "\t\t<path>./" .. esc(SCRIPT) .. "</path>",
-    "\t\t<name>R36S PORT HUB</name>",
+    "\t\t<name>" .. NAME .. "</name>",
     "\t\t<desc>" .. esc(DESC) .. "</desc>",
   }
   for _, tg in ipairs(TAGS) do t[#t + 1] = "\t\t<" .. tg[1] .. ">" .. tg[2] .. "</" .. tg[1] .. ">" end
-  t[#t + 1] = "\t\t<developer>Comunidade R36S</developer>"
+  t[#t + 1] = "\t\t<developer>" .. esc(DEV) .. "</developer>"
   t[#t + 1] = "\t\t<genre>Other</genre>"
   t[#t + 1] = "\t</game>"
   return table.concat(t, nl) .. nl
@@ -241,10 +243,52 @@ local function write_entry(p, script, rel_img)
   return { mode = mode, script = script, image = rel_img }
 end
 
+--- Knulli/Batocera: o EmulationStation lista tambem os .sh que ficam DENTRO
+--- das pastas dos ports (scripts internos). Acrescenta uma entrada oculta
+--- (<hidden>true</hidden>) para cada um que ainda nao esta no gamelist.xml.
+function E.hide_inner_scripts(entries)
+  if not C.KNULLI then return 0 end
+  local dir = C.PORTS_DIR
+  local found = {}
+  for _, n in ipairs(entries or {}) do
+    if not n:lower():match("%.sh$") and U.is_dir(dir .. "/" .. n) then
+      local out = U.capture("cd " .. U.shq(dir) .. " && find " .. U.shq(n) .. " -mindepth 1 -maxdepth 4 -type f -iname '*.sh' 2>/dev/null | head -n 200") or ""
+      for line in out:gmatch("[^\r\n]+") do found[#found + 1] = line end
+    end
+  end
+  if #found == 0 then return 0 end
+  local path = gamelist_path()
+  local text = U.read_file(path)
+  if not text or not text:find("</gameList>", 1, true) then return 0 end
+  local nl = text:find("\r\n", 1, true) and "\r\n" or "\n"
+  local add = {}
+  for _, rel in ipairs(found) do
+    if not text:find("<path>./" .. esc(rel) .. "</path>", 1, true) then
+      add[#add + 1] = "\t<game>" .. nl .. "\t\t<path>./" .. esc(rel) .. "</path>" .. nl
+        .. "\t\t<hidden>true</hidden>" .. nl .. "\t</game>" .. nl
+    end
+  end
+  if #add == 0 then return 0 end
+  local a, p0 = nil, 1
+  while true do
+    local x = text:find("</gameList>", p0, true)
+    if not x then break end
+    a, p0 = x, x + 1
+  end
+  local out = text:sub(1, a - 1):gsub("[ \t]*$", "") .. table.concat(add) .. text:sub(a)
+  if not save_list(text, out) then return 0 end
+  return #add
+end
+
 --- Coloca a capa de um port recem-instalado no gamelist.xml.
 --- entries = itens instalados (nomes em /roms/ports). cover_file = capa do
 --- catalogo ja baixada (caminho absoluto) ou nil. Devolve info ou nil, motivo.
 function E.add_port(p, entries, cover_file)
+  pcall(E.hide_inner_scripts, entries)
+  return E.add_port_cover(p, entries, cover_file)
+end
+
+function E.add_port_cover(p, entries, cover_file)
   local dir = C.PORTS_DIR
   local scripts, folders = {}, {}
   for _, n in ipairs(entries or {}) do

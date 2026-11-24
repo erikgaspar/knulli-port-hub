@@ -32,6 +32,11 @@ fi
 # "directory" vem do control.txt (roms ou roms2). Sem PortMaster, assume roms.
 directory=${directory:-roms}
 
+# Knulli (base Batocera): o app troca as funcoes do dArkOS pelas do Knulli
+if [ -x /usr/bin/knulli-settings-get ] || grep -qi knulli /etc/os-release 2>/dev/null; then
+  export PORTHUB_FW=knulli
+fi
+
 GAMEDIR="/$directory/ports/r36sporthub"
 CONFDIR="$GAMEDIR/conf"
 
@@ -266,6 +271,34 @@ while true; do
   echo "[launcher] Ferramenta encerrada; voltando ao R36S PORT HUB"
   export PORTHUB_RETURN="$TOOL_REQ"
 done
+
+# Knulli: lista de jogos pela API do EmulationStation, tema pelo es_settings.cfg
+# do Knulli (com o EmulationStation parado, num processo separado) e energia
+# pelo knulli-shutdown. Nao ha systemctl/sudo no Knulli.
+if [ "$PORTHUB_FW" = "knulli" ]; then
+  K_POWER=$(head -n 1 "$CONFDIR/.power" 2>/dev/null)
+  K_THEME=""
+  if [ -f "$CONFDIR/.es_theme" ]; then
+    K_THEME=$(head -n 1 "$CONFDIR/.es_theme" | tr -cd 'A-Za-z0-9._ -')
+    [ -n "$K_THEME" ] && [ -d "/userdata/themes/$K_THEME" -o -d "/usr/share/emulationstation/themes/$K_THEME" ] || K_THEME=""
+  fi
+  rm -f "$CONFDIR/.power" "$CONFDIR/.restart_es" "$CONFDIR/.es_theme"
+  sync
+  case "$K_POWER" in
+    poweroff) echo "[launcher] Knulli: desligando"; setsid /usr/bin/knulli-shutdown -s >/dev/null 2>&1 < /dev/null & ;;
+    reboot)   echo "[launcher] Knulli: reiniciando"; setsid /usr/bin/knulli-shutdown -r >/dev/null 2>&1 < /dev/null & ;;
+    *)
+      if [ -n "$K_THEME" ] && [ -f "$GAMEDIR/bin/knulli_theme_apply.sh" ]; then
+        echo "[launcher] Knulli: aplicando tema $K_THEME (reinicia o EmulationStation)"
+        setsid /bin/bash "$GAMEDIR/bin/knulli_theme_apply.sh" "$K_THEME" "$CONFDIR" >/dev/null 2>&1 < /dev/null &
+      else
+        echo "[launcher] Knulli: recarregando a lista de jogos"
+        curl -s -m 5 http://127.0.0.1:1234/reloadgames >/dev/null 2>&1
+      fi
+      ;;
+  esac
+  exit "${LAST_LOVE_RC:-0}"
+fi
 
 # R36 Hub OS: nao ha EmulationStation para reiniciar (a interface e o proprio hub)
 if [ "$R36HUBOS" = "1" ]; then rm -f "$CONFDIR/.restart_es" "$CONFDIR/.es_theme"; fi

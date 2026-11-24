@@ -14,6 +14,11 @@ C.VERSION_NUM = "0.5.4"        -- numero usado para comparar com a atualizacao
 C.OS_MODE = os.getenv("R36HUBOS") == "1"
 C.OS_NAME = "R36 Hub OS"
 C.OS_VERSION = os.getenv("R36HUBOS_VERSION") or ""
+-- Knulli (base Batocera, ex.: Anbernic RG35XXH): o launcher exporta PORTHUB_FW=knulli.
+-- Esconde o que e do dArkOS (Wi-Fi, temas, R36 Control, PortMaster, microSD...),
+-- recarrega a lista de jogos pela API do EmulationStation e usa /userdata/bios.
+C.KNULLI = os.getenv("PORTHUB_FW") == "knulli"
+if C.KNULLI then C.VERSION = L("0.5.4 BETA · Knulli") end
 
 -- Atualizacao do sistema (Configuracoes > Atualizacao do sistema).
 -- Link direto do pacote .zip (o hub le o update_manifest.json de dentro dele:
@@ -22,6 +27,8 @@ C.OS_VERSION = os.getenv("R36HUBOS_VERSION") or ""
 -- { "version", "url", "sha256", "notes" }.
 -- Tambem pode ser definido em <pasta do app>/update_url.txt (sobrescreve este).
 C.UPDATE_URL = "https://github.com/liralflsti-wq/r36s-port-hub-catalogo/releases/latest/download/R36S-PORT-HUB-update.zip"
+-- Knulli: a atualizacao oficial e a versao do R36S (sobrescreveria as adaptacoes)
+if C.KNULLI then C.UPDATE_URL = "" end
 
 -- Catalogo de temas (Configuracoes > Temas > Baixar novos temas). Vazio ate o
 -- repositorio de temas ser publicado. Tambem pode ser definido em
