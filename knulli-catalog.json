@@ -54,7 +54,7 @@
     {
       "id": "tubo",
       "name": "Tubo (YouTube)",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "type": "utility",
       "review": "experimental",
       "summary": "Cliente leve e NÃO OFICIAL de YouTube para o console: busca, canais, inscrições locais, assistir mais tarde e modo só áudio, até 480p. Para uso pessoal. Usa yt-dlp (baixado na instalação) e mpv.",
@@ -75,7 +75,7 @@
       "license": "Uso pessoal (fonte Inter: SIL OFL)",
       "repository": "https://github.com/erikgaspar/knulli-port-hub/tree/main/apps/tubo",
       "image_url": "https://raw.githubusercontent.com/erikgaspar/knulli-port-hub/main/apps/tubo/tubo-image.png",
-      "release": {"url": "https://github.com/erikgaspar/knulli-port-hub/releases/download/tubo-v1.0.1/Tubo.zip", "size": 878149, "sha256": "036cb666adc70194c9db9b856a18eb68d7ae5b7ef556019de5819e5199449dfa", "installed_size": 11265890},
+      "release": {"url": "https://github.com/erikgaspar/knulli-port-hub/releases/download/tubo-v1.0.2/Tubo.zip", "size": 878770, "sha256": "cac786aecff039b416456170b0c0ebc2e31a4e3fc98a3d1fa3f4ffbfeba2a15c", "installed_size": 11267110},
       "install": {
         "destination": "/userdata/system/knulli-tools/tubo",
         "launcher": "Tubo.sh",
