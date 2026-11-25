@@ -16,6 +16,7 @@ local ERRORS = {
   no_space = L("Espaço insuficiente no cartão."),
   http_error = L("O servidor recusou o download (link inválido ou removido)."),
   net_error = L("Falha de conexão durante o download. Verifique o Wi-Fi e tente de novo."),
+  net_paused = L("A conexão caiu e não voltou depois de 5 tentativas."),
   empty_file = L("O download terminou, mas o arquivo veio vazio."),
   not_zip = L("O arquivo baixado não é um pacote válido (ZIP, RAR, 7z ou TAR)."),
   no_extractor = L("Não há extrator de %s disponível no console."),
@@ -43,6 +44,17 @@ function I.error_text(code, detail)
   elseif code == "size_mismatch" and detail and detail:match("^%d+|%d+$") then
     local got, exp = detail:match("^(%d+)|(%d+)$")
     msg = msg .. string.format(L("\nRecebido: %s de %s"), U.format_bytes(tonumber(got)), U.format_bytes(tonumber(exp)))
+    msg = msg .. L("\nO arquivo foi apagado. Peça o download de novo para baixar do zero.")
+  elseif code == "checksum" then
+    msg = msg .. L("\nO arquivo foi apagado. Peça o download de novo para baixar do zero.")
+  elseif code == "net_paused" and detail and detail:match("^%d+|%d+") then
+    local got, exp = detail:match("^(%d+)|(%d+)")
+    got, exp = tonumber(got), tonumber(exp)
+    local what = U.format_bytes(got)
+    if exp and exp > 0 then
+      what = string.format(L("%s de %s, %d%%"), U.format_bytes(got), U.format_bytes(exp), math.floor(got / exp * 100))
+    end
+    msg = msg .. string.format(L("\nO que já foi baixado (%s) ficou guardado: peça o download de novo para continuar de onde parou."), what)
   elseif (code == "not_zip" or code == "bad_zip" or code == "net_error" or code == "http_error" or code == "internal")
       and detail and detail ~= "" then
     msg = msg .. "\n(" .. U.safe_utf8(detail):sub(1, 90) .. ")"
@@ -80,7 +92,7 @@ function I.start(p, opts)
   j.thread = love.thread.newThread("threads/install_thread.lua")
   j.thread:start({ lang = require("lib.i18n").lang,
     out_channel = j.out, in_channel = j.inn,
-    name = p.name, slug = p.slug,
+    name = p.name, slug = p.slug, id = p.id,
     url = p.download_url,
     expected_size = p.size_exact and p.size or 0,
     sha256 = p.sha256, md5 = p.md5,
@@ -141,12 +153,35 @@ function I.update()
       j.label = m.label   -- ex.: nome do runtime do PortMaster sendo baixado
       j.done = 0
       if m.total then j.total = m.total end
-      if m.phase == "download" then j.samples = {}; j.speed = 0; j.eta = nil end
+      if m.phase == "download" then j.samples = {}; j.speed = 0; j.eta = nil; j.net_retry = nil end
     elseif m.t == "progress" then
       j.phase = m.phase or j.phase
       j.done = m.done or 0
       if m.total then j.total = m.total end
       if j.phase == "download" then update_speed(j, love.timer.getTime()) end
+      -- voltou a chegar dado depois da queda: some o aviso
+      local r = j.net_retry
+      if r and r.resuming and (m.done or 0) > (r.done or 0) then j.net_retry = nil end
+    elseif m.t == "resumed" then
+      -- parcial de antes aceito: continua do ponto
+      j.resumed_from, j.done = m.from, m.from
+      j.samples = {}
+      if m.total then j.total = m.total end
+    elseif m.t == "resumable" then
+      j.resumable = m.ok and true or false
+    elseif m.t == "resume_discard" then
+      j.resume_discard = m.reason
+    elseif m.t == "net_retry" then
+      -- conexao caiu: o fetch.sh espera e tenta de novo do mesmo ponto
+      j.net_retry = { attempt = m.attempt, max = m.max, rc = m.rc, wait = m.wait, done = m.done,
+        total = m.total or j.total, t = love.timer.getTime() }
+      j.speed, j.eta, j.samples = 0, nil, {}
+    elseif m.t == "net_resume" then
+      if j.net_retry then j.net_retry.resuming = true end
+      j.samples = {}
+    elseif m.t == "net_restart" then
+      j.net_retry, j.resumed_from, j.restarted = nil, nil, true
+      j.samples = {}
     elseif m.t == "confirm" then
       j.confirm = m.items
     elseif m.t == "done" then
@@ -170,6 +205,11 @@ function I.update()
       j.finished, j.result = true, "error"
       j.error = I.error_text(m.code, m.detail)
       j.error_code = m.code
+      j.partial = tonumber(m.partial)
+      if j.partial and m.code ~= "net_paused" then
+        j.error = j.error .. string.format(require("lib.i18n").tr(L("\nO que já foi baixado (%s) ficou guardado para continuar depois.")),
+          U.format_bytes(j.partial))
+      end
       if m.code == "encrypted" and j.opts and j.opts.password then
         j.error = L("Senha incorreta.")
       end
@@ -186,6 +226,7 @@ function I.update()
       end
     elseif m.t == "cancelled" then
       j.finished, j.result = true, "cancelled"
+      j.partial = tonumber(m.partial)
     end
     m = j.out_ch:pop()
   end

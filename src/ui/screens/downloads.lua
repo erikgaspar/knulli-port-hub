@@ -22,10 +22,18 @@ local STATE = {
   waiting = { "AGUARDANDO", T.c.dim }, downloading = { L("BAIXANDO"), T.c.accent2 },
   extracting = { L("EXTRAINDO"), T.c.yellow }, installing = { L("INSTALANDO"), T.c.orange },
   done = { "CONCLUÍDO", T.c.green }, error = { "ERRO", T.c.red }, cancelled = { "CANCELADO", T.c.faint },
+  paused = { L("PAUSADO"), T.c.yellow },
 }
 local STAGE_LABEL = { download = L("DOWNLOAD"), extract = L("EXTRAÇÃO"), install = L("INSTALAÇÃO") }
+local Partials = require("core.partials")
 
-function S:enter() self.sel, self.scroll = 1, 0 end
+function S:enter()
+  self.sel, self.scroll = 1, 0
+  -- downloads incompletos (parciais guardados) entram como "Pausado em X%"
+  Partials.invalidate()
+  Downloads.sync_partials()
+  self.sync_t = 0
+end
 
 function S:clamp()
   local n = #Downloads.list
@@ -35,13 +43,32 @@ function S:clamp()
   self.scroll = U.clamp(self.scroll, 0, math.max(0, n - VISIBLE))
 end
 
-function S:update() self:clamp() end
+function S:update(dt)
+  self.sync_t = (self.sync_t or 0) + (dt or 0)
+  if self.sync_t > 1.5 then
+    self.sync_t = 0
+    Downloads.sync_partials()
+  end
+  self:clamp()
+end
 
 --- port do catalogo (para capa e para conferir se esta instalado)
 local function port_of(e) return e.port or (e.pid and Catalog.by_id[e.pid]) end
 
 --- linha de numeros reais da etapa atual / resultado final
 local function detail_line(e)
+  if e.paused and not e.job then
+    local pp = e.paused
+    local txt = Partials.paused_label(pp)
+    if pp.total and pp.total > 0 then
+      txt = txt .. "  •  " .. U.format_bytes(pp.done) .. L(" de ") .. U.format_bytes(pp.total)
+    end
+    return txt
+  end
+  if e.job and e.job.net_retry then
+    local t1, t2 = Partials.retry_text(e.job)
+    return t1 .. "  •  " .. t2
+  end
   if e.state == "error" then return (e.error and (require("lib.i18n").tr(e.error):gsub("\n", " "))) or L("Erro desconhecido.") end
   if e.state == "cancelled" then return L("Cancelado") .. (e.date and (L(" em ") .. e.date) or "") end
   if e.state == "waiting" then return L("Na fila: começa quando a operação atual terminar.") end
@@ -115,7 +142,8 @@ function S:draw()
     local e = list[i]
     local y = LIST_Y + 4 + (i - self.scroll - 1) * (ROW_H + 4)
     local on = i == self.sel
-    local st = STATE[e.state] or { e.state, T.c.dim }
+    local paused = e.paused and not e.job
+    local st = (paused and STATE.paused) or STATE[e.state] or { e.state, T.c.dim }
     local c = st[2]
     G.panel(12, y, T.W - 24, ROW_H, { bg = on and T.c.bg3 or T.c.bg1, border = on and T.c.accent or T.c.line, lw = on and 2 or 1 })
     G.rect(12, y + 8, 4, ROW_H - 16, c, 2)
@@ -135,6 +163,9 @@ function S:draw()
     -- estado + porcentagem real
     local pct = Downloads.percent(e)
     local lbl = pct and e.job and (st[1] .. " — " .. pct .. "%") or st[1]
+    local ppct = paused and Partials.pct(e.paused)
+    if ppct then lbl = st[1] .. " — " .. ppct .. "%" end
+    if e.job and e.job.net_retry then lbl, c = L("SEM CONEXÃO"), T.c.yellow end
     G.text(T.f.pix8, lbl, T.W - 26 - T.f.pix8:getWidth(lbl), y + 9, c)
     -- selo INSTALADO so depois da instalacao concluida e validada
     if e.state == "done" and p and (e.op or ""):find("instala") and App.status(p) ~= "none" then
@@ -146,6 +177,11 @@ function S:draw()
       else G.progress_busy(tx, y + 44, T.W - tx - 26, 8, App.t, c) end
       G.text_fit(T.f.small, detail_line(e), tx, y + 54, T.W - tx - 26, T.c.dim)
       draw_stages(e, tx, y + 70, T.W - tx - 26)
+    elseif paused then
+      -- download incompleto guardado: barra parada no ponto em que ficou
+      if ppct then G.progress(tx, y + 44, T.W - tx - 26, 8, ppct / 100, c) end
+      G.text_fit(T.f.small, detail_line(e), tx, y + 56, T.W - tx - 26, T.c.yellow)
+      G.text_fit(T.f.small, L("Selecione para continuar de onde parou ou apagar o que já foi baixado."), tx, y + 72, T.W - tx - 26, T.c.faint)
     else
       G.text_fit(T.f.small, detail_line(e), tx, y + 46, T.W - tx - 26, e.state == "error" and T.c.red or T.c.dim)
       if e.stages and next(e.stages) then draw_stages(e, tx, y + 66, T.W - tx - 26) end
@@ -160,6 +196,7 @@ function S:draw()
   local sel = list[self.sel]
   local hints = { { "dpad", L("Navegar") } }
   if sel and sel.job then hints[#hints + 1] = { "a", L("Ver progresso") }
+  elseif sel and sel.paused then hints[#hints + 1] = { "a", L("Continuar") }
   elseif sel and sel.state == "waiting" then hints[#hints + 1] = { "a", L("Tirar da fila") } end
   if Downloads.history_count() > 0 then hints[#hints + 1] = { "x", L("Limpar histórico") } end
   hints[#hints + 1] = { "b", L("Voltar") }
@@ -180,6 +217,29 @@ function S:action(act)
     -- traz a janela de progresso para a frente (B nela permite cancelar)
     e.job.background = false
     Downloads.background = false
+  elseif act == "a" and e and e.paused then
+    local pp = e.paused
+    local p = e.port or Partials.port_of(pp)
+    local I18N = require("lib.i18n")
+    local got = U.format_bytes(pp.done or 0)
+    if pp.total and pp.total > 0 then got = got .. L(" de ") .. U.format_bytes(pp.total) end
+    App.show_dialog({
+      title = L("Download incompleto"), kind = "info",
+      body = string.format(I18N.tr(L("%s: %s já baixados.\n\nContinuar de onde parou? Se o arquivo mudou no servidor, o download recomeça do zero.")),
+        e.name, got),
+      buttons = {
+        { label = L("CONTINUAR"), fn = function()
+          if p then App.install(p) else App.toast(L("Este item não está mais no catálogo."), "warn") end
+        end },
+        { label = L("APAGAR"), fn = function()
+          Partials.remove(pp)
+          Downloads.sync_partials()
+          App.toast(string.format(I18N.tr(L("Download incompleto apagado (%s liberados).")), U.format_bytes(pp.done or 0)), "ok")
+        end },
+        { label = L("VOLTAR") },
+      },
+      sel = 1,
+    })
   elseif act == "a" and e and e.state == "waiting" then
     App.show_dialog({
       title = L("Tirar da fila?"), kind = "warn",

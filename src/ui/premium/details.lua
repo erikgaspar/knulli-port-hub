@@ -44,6 +44,11 @@ function PD.main_label(self)
   local p = self.port
   if playable(p) then return L("Jogar"), true end
   local label, enabled = self:primary()
+  local part = not Downloads.pending(p.id) and require("core.partials").for_port(p)
+  if part and enabled then
+    local pct = require("core.partials").pct(part)
+    return pct and string.format(require("lib.i18n").tr(L("Continuar (%d%%)")), pct) or L("Continuar"), true
+  end
   local nice = { [L("INSTALAR")] = L("Instalar"), [L("ATUALIZAR")] = L("Atualizar"), [L("REINSTALAR")] = L("Reinstalar"),
     [L("NA FILA")] = L("Na fila"), [L("BAIXANDO")] = L("Baixando"), [L("EM BREVE")] = L("Em breve"), [L("INSTALADO")] = L("Instalado") }
   return nice[label] or label, enabled
@@ -272,7 +277,9 @@ function PD.draw(self)
   local st_ = App.status(p)
   local stxt, scol
   local pend = Downloads.pending(p.id)
+  local part = (not pend) and require("core.partials").for_port(p)
   if pend then stxt, scol = (pend.state == "waiting" and L("Na fila") or L("Baixando")), c.warn
+  elseif part then stxt, scol = require("core.partials").paused_label(part), c.warn
   elseif p.builtin then stxt, scol = L("Ferramenta do hub"), c.accent
   elseif st_ == "installed" then stxt, scol = L("Instalado"), c.accent
   elseif st_ == "update" then stxt, scol = L("Atualização disponível"), c.warn

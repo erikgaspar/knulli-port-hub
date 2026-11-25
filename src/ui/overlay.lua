@@ -233,6 +233,7 @@ function O.draw_install(app, j)
   -- barra + detalhes
   local by = y + 140
   local label, detail, frac = "", "", nil
+  local label_c = T.c.text
   if j.phase == "prepare" then
     label = L("Preparando...")
     detail = L("Verificando pasta de ports e espaço livre")
@@ -247,6 +248,15 @@ function O.draw_install(app, j)
     if j.speed and j.speed > 0 then
       detail = detail .. "  •  " .. U.format_speed(j.speed)
       if j.eta then detail = detail .. L("  •  faltam ") .. U.format_time(j.eta) end
+    end
+    -- retomada: parcial de antes ou conexao caiu no meio (fetch.sh tenta de novo)
+    local P = require("core.partials")
+    local rt, rd = P.retry_text(j)
+    if rt then
+      label, detail, label_c = rt, rd .. "  •  " .. detail, T.c.yellow
+    elseif j.resumed_from and j.resumed_from > 0 and j.total and j.total > 0 then
+      label = string.format(require("lib.i18n").tr(L("Baixando arquivo (continuando de %d%%)")),
+        math.floor(U.clamp(j.resumed_from / j.total, 0, 1) * 100))
     end
   elseif j.phase == "verify" then
     label = L("Verificando o download")
@@ -264,7 +274,7 @@ function O.draw_install(app, j)
     label = (jopts.mode == "extract" and L("Movendo para ") or L("Instalando em ")) .. (jopts.dest_dir or C.PORTS_DIR)
     if j.total and j.total > 0 then frac = j.done / j.total end
   end
-  G.text(T.f.bodyb, label, x + 24, by, T.c.text)
+  G.text(T.f.bodyb, label, x + 24, by, label_c)
   if frac then
     local pct = string.format("%d%%", math.floor(U.clamp(frac, 0, 1) * 100))
     G.text(T.f.pix16, pct, x + w - 24 - T.f.pix16:getWidth(pct), by, T.c.yellow)
@@ -315,7 +325,9 @@ function O.draw_install(app, j)
     O.draw_dialog(app, {
       title = L("Cancelar instalação?"),
       kind = "warn",
-      body = L("O download será interrompido e os arquivos temporários serão apagados."),
+      body = (j.phase == "download" and j.resumable and (j.done or 0) > 1024 * 1024)
+        and L("O download será interrompido. O que já foi baixado fica guardado: pedindo de novo, ele continua de onde parou (ou limpe em Configurações > Downloads).")
+        or L("O download será interrompido e os arquivos temporários serão apagados."),
       buttons = { { label = L("SIM, CANCELAR"), danger = true }, { label = L("CONTINUAR") } },
       sel = j.ask_cancel_sel or 2,
     })
@@ -479,8 +491,12 @@ function O.on_install_finished(app, j)
         or L(" instalado. Reinicie a lista de Ports para ver o jogo.")), "ok")
     elseif j.result == "error" and j.broken_marked then
       app.toast(L("Falha ao instalar ") .. p.name .. L(": download quebrado. Item escondido (Configurações > Downloads > Itens escondidos)."), "error")
+    elseif j.result == "error" and j.partial then
+      app.toast(L("Download de ") .. p.name .. L(" pausado: a conexão caiu. Peça de novo para continuar de onde parou."), "warn")
     elseif j.result == "error" then
       app.toast(L("Falha ao instalar ") .. p.name .. L(". Veja a Central de Downloads."), "error")
+    elseif j.partial then
+      app.toast(L("Download de ") .. p.name .. L(" pausado. O que já foi baixado ficou guardado."), "warn")
     else
       app.toast(L("Download de ") .. p.name .. L(" cancelado."), "warn")
     end
@@ -545,6 +561,13 @@ function O.on_install_finished(app, j)
         { label = L("TENTAR DE NOVO"), fn = function() app.install(p, j.opts) end },
       },
     })
+    -- parcial guardado: o mesmo pedido continua de onde parou
+    if j.partial then
+      app.dialog.title = L("Download pausado")
+      app.dialog.kind = "warn"
+      app.dialog.body = j.error
+      app.dialog.buttons[2].label = L("CONTINUAR")
+    end
     if j.error_code == "install_failed" then
       app.dialog.body = j.error .. L("\n\nA cópia foi interrompida; reinstale o port para corrigir.")
     end
@@ -555,8 +578,12 @@ function O.on_install_finished(app, j)
         { label = L("ITENS ESCONDIDOS"), fn = function() require("ui.broken_ui").open() end } }
     end
   elseif j.result == "cancelled" then
-    app.toast(jo.local_file and L("Extração cancelada. O arquivo compactado foi mantido.")
-      or L("Instalação cancelada. Arquivos temporários removidos."), "warn")
+    if j.partial then
+      app.toast(L("Download pausado. O que já foi baixado ficou guardado para continuar depois."), "warn")
+    else
+      app.toast(jo.local_file and L("Extração cancelada. O arquivo compactado foi mantido.")
+        or L("Instalação cancelada. Arquivos temporários removidos."), "warn")
+    end
   end
   Installer.clear()
 end

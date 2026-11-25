@@ -163,6 +163,12 @@ function S:primary()
   local pend = Downloads.pending(p.id)
   if pend then return pend.state == "waiting" and L("NA FILA") or L("BAIXANDO"), false end
   if not p.download_url:match("^https?://") then return L("EM BREVE"), false end
+  -- download incompleto guardado (core/partials.lua): continua de onde parou
+  local part = require("core.partials").for_port(p)
+  if part then
+    local pct = require("core.partials").pct(part)
+    return pct and string.format(require("lib.i18n").tr(L("CONTINUAR (%d%%)")), pct) or L("CONTINUAR"), true
+  end
   if st == "update" then return L("ATUALIZAR"), true end
   if st == "installed" then return L("REINSTALAR"), true end
   return L("INSTALAR"), true

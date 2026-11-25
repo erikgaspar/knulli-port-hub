@@ -19,6 +19,7 @@ local HISTORY_MAX = 30
 D.LABEL = {
   waiting = L("Aguardando"), downloading = L("Baixando"), extracting = L("Extraindo"),
   installing = L("Instalando"), done = L("Concluído"), error = L("Erro"), cancelled = L("Cancelado"),
+  paused = L("Pausado"),
 }
 -- fase do instalador -> estado
 local PHASE_STATE = {
@@ -184,6 +185,8 @@ end
 
 --- Chamado quando o instalador termina (antes das mensagens na tela)
 function D.on_finished(j)
+  -- parcial guardado ou apagado pela thread: a lista de incompletos muda
+  if package.loaded["core.partials"] then package.loaded["core.partials"].invalidate() end
   local e = j.download_entry
   if not e then return end
   e.job = nil
@@ -298,6 +301,52 @@ function D.ext_finish(e, result, err)
   if not e or not e.job then return end
   e.job.finished = true
   D.on_finished({ download_entry = e, result = result, error = err })
+end
+
+-- ---------------------------------------------------------------------------
+-- Downloads incompletos (core/partials.lua): aparecem na fila como
+-- "Pausado em X% — continuar". Um parcial marca o registro mais recente do
+-- mesmo port que terminou com erro/cancelado; sem registro, entra um item
+-- "paused" so na tela (nao vai para o historico salvo).
+function D.sync_partials()
+  if not D.loaded then D.load() end
+  local okp, P = pcall(require, "core.partials")
+  if not okp then return end
+  local by = {}
+  for _, part in ipairs(P.list()) do
+    local p = P.port_of(part)
+    if p and p.id and not D.pending(p.id) and not by[p.id] then
+      if part.legacy or not part.url or part.url == p.download_url then by[p.id] = { part = part, port = p } end
+    end
+  end
+  local keep = {}
+  for _, x in ipairs(D.list) do
+    x.paused = nil
+    if not (x.state == "paused" and not by[x.pid]) then keep[#keep + 1] = x end
+  end
+  D.list = keep
+  for pid, it in pairs(by) do
+    local found
+    for _, x in ipairs(D.list) do
+      if x.pid == pid and not x.job and x.state ~= "waiting" then found = x; break end
+    end
+    if found and (found.state == "error" or found.state == "cancelled" or found.state == "paused") then
+      found.paused = it.part
+      found.port = found.port or it.port
+    else
+      D.seq = D.seq + 1
+      local p = it.port
+      local e = { key = D.seq, pid = pid, port = p, name = p.name, section = p.section or "games",
+        state = "paused", paused = it.part, dl_total = it.part.total,
+        date = it.part.mtime and it.part.mtime > 0 and os.date("%d/%m/%Y %H:%M", it.part.mtime) or nil,
+        op = D.op_label(nil, p.section), stages = {} }
+      local pos = 1
+      for i, o in ipairs(D.list) do
+        if o.state == "waiting" or o.job then pos = i + 1 end
+      end
+      table.insert(D.list, pos, e)
+    end
+  end
 end
 
 --- quantos itens finalizados (historico) existem

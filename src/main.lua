@@ -1165,6 +1165,12 @@ function love.update(dt)
   end
   require("core.updnotice").update(dt)
   if C.KNULLI then App.broken_update() end
+  -- downloads incompletos: limpeza 1x por sessao (7 dias / fora do catalogo)
+  if not App.partials_pruned and (App.t or 0) > 12 and #(Catalog.ports or {}) > 0 and not Installer.busy() then
+    App.partials_pruned = true
+    local okp, perr = pcall(function() require("core.partials").prune() end)
+    if not okp then U.log("downloads incompletos:", tostring(perr)) end
+  end
   App.catalog_retry_update(dt)
   Stream.update()
   Recorder.update()

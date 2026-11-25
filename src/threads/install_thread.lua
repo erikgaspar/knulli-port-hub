@@ -54,6 +54,15 @@ local PART = ZIP .. ".part"
 local STAGE = WORK .. "/stage"
 local PIDF = WORK .. "/dl.pid"
 local RCF = WORK .. "/dl.rc"
+-- Retomada de downloads: o parcial (download.zip.part) fica na pasta do job
+-- com resume.json (url, total, etag, last_modified, datas). STATUSF recebe do
+-- fetch.sh o estado das novas tentativas ("retry ...", "resume ...").
+local META = WORK .. "/resume.json"
+local STATUSF = WORK .. "/dl.status"
+local MAX_AGE = 7 * 24 * 3600
+-- true enquanto o parcial deve sobreviver a uma falha (servidor aceita Range)
+local KEEP = false
+local META_T = nil   -- metadados do download atual (gravados em META)
 
 local cancelled = false
 local extract_7z
@@ -70,18 +79,67 @@ local function cleanup()
   sh("rm -rf " .. shq(WORK) .. " 2>/dev/null")
 end
 
+-- apaga tudo do job menos o parcial e seus metadados
+local function cleanup_keep()
+  sh("cd " .. shq(WORK) .. " 2>/dev/null && for f in * .[!.]*; do case \"$f\" in "
+    .. "download.zip.part|resume.json|'*'|'.[!.]*') ;; *) rm -rf -- \"$f\" ;; esac; done")
+end
+
+local function write_meta(m)
+  local okj, J = pcall(require, "lib.json")
+  if not okj or type(m) ~= "table" then return end
+  local f = io.open(META .. ".tmp", "wb")
+  if not f then return end
+  f:write(J.encode(m))
+  f:close()
+  os.rename(META .. ".tmp", META)
+end
+
+local function read_meta()
+  local t = read_all(META)
+  if not t then return nil end
+  local okj, J = pcall(require, "lib.json")
+  if not okj then return nil end
+  local okd, m = pcall(J.decode, t)
+  return (okd and type(m) == "table") and m or nil
+end
+
+--- guarda o parcial para continuar depois (falha de rede, cancelado, app fechado)
+local function keep_partial(state, rc)
+  local have = fsize(PART) or 0
+  if not (KEEP and META_T and have > 0) then return false end
+  META_T.state = state
+  META_T.done = have
+  META_T.rc = rc
+  META_T.updated = os.time()
+  write_meta(META_T)
+  return true, have
+end
+
 local function fail(code, detail)
   log("ERRO", code, detail or "")
   -- tamanho do que foi baixado (Knulli: guarda na marca de "pacote invalido")
   local size = (not job.local_file) and fsize(PART) or nil
-  cleanup()
-  send({ t = "error", code = code, detail = detail or "", size = size })
+  if KEEP and not job.local_file and (fsize(PART) or 0) > 0 then
+    cleanup_keep()
+    log("parcial guardado para continuar depois:", size, "bytes")
+  else
+    cleanup()
+  end
+  send({ t = "error", code = code, detail = detail or "", size = size,
+    partial = (KEEP and size and size > 0) and size or nil })
 end
 
 local function cancel_done()
   log("cancelado pelo usuario")
-  cleanup()
-  send({ t = "cancelled" })
+  local kept, have = false, nil
+  -- download ja avancou (mais de 1 MB) num servidor que aceita continuar:
+  -- vira pausa, o parcial fica para o proximo pedido (ou e limpo depois)
+  if not job.local_file and (fsize(PART) or 0) > 1024 * 1024 then
+    kept, have = keep_partial("paused", 143)
+  end
+  if kept then cleanup_keep() else cleanup() end
+  send({ t = "cancelled", partial = kept and have or nil })
 end
 
 local function free_bytes(path)
@@ -91,6 +149,77 @@ local function free_bytes(path)
 end
 
 local function lower(s) return (s or ""):lower() end
+
+-- ---------------------------------------------------------------------------
+-- Download pelo fetch.sh em segundo plano, com retomada automatica nas quedas
+-- (PH_STATUS). ifrange = validador para If-Range (arquivo mudou -> do zero).
+local function start_fetch(url, part, logf, ifrange)
+  os.remove(RCF); os.remove(PIDF); os.remove(STATUSF)
+  local env = "PH_STATUS=" .. shq(STATUSF) .. " "
+  if ifrange and ifrange ~= "" then env = env .. "PH_IFRANGE=" .. shq(ifrange) .. " " end
+  sh(env .. "sh " .. shq(job.fetch_sh) .. " get " .. shq(url) .. " " .. shq(part) .. " "
+    .. shq(PIDF) .. " " .. shq(RCF) .. " >" .. shq(logf) .. " 2>&1 &")
+end
+
+--- acompanha ate o fim: devolve o rc do fetch.sh ou "cancel"
+local function watch_fetch(part, expected, on_retry)
+  local last_push, last_st = -1, nil
+  while true do
+    love.timer.sleep(0.25)
+    if check_cancel() then
+      local pid = (read_all(PIDF) or ""):match("%d+")
+      if pid then sh("kill " .. pid .. " 2>/dev/null") end
+      -- espera o script terminar
+      for _ = 1, 40 do
+        love.timer.sleep(0.1)
+        if read_all(RCF) then break end
+      end
+      return "cancel"
+    end
+    local s = read_all(RCF)
+    local stl = read_all(STATUSF)
+    if stl and stl ~= last_st then
+      last_st = stl
+      local n, mx, crc, wt, b = stl:match("^retry (%d+) (%d+) (%d+) (%d+) (%d+)")
+      if n then
+        log("conexao caiu (rc=" .. crc .. "): tentativa " .. n .. "/" .. mx .. " em " .. wt .. " s, " .. b .. " bytes guardados")
+        send({ t = "net_retry", attempt = tonumber(n), max = tonumber(mx), rc = tonumber(crc),
+          wait = tonumber(wt), done = tonumber(b), total = expected })
+        if on_retry then on_retry(tonumber(b)) end
+      elseif stl:match("^resume") then
+        send({ t = "net_resume", done = fsize(part) or 0, total = expected })
+      elseif stl:match("^restart") then
+        log("servidor nao aceitou continuar: recomecando do zero")
+        send({ t = "net_restart" })
+      end
+    end
+    local done = fsize(part) or 0
+    -- rc lido ANTES do estado: a ultima mudanca ("restart") nao se perde
+    if s and s:match("%d+") then return tonumber(s:match("%d+")) end
+    if done ~= last_push then
+      send({ t = "progress", phase = "download", done = done, total = expected })
+      last_push = done
+    end
+  end
+end
+
+--- consulta leve do link (fetch.sh probe: 1 KB com Range). ranges = servidor
+--- respondeu 206 (aceita continuar); total = tamanho do arquivo inteiro
+local function probe(url)
+  local out = capture("sh " .. shq(job.fetch_sh) .. " probe " .. shq(url) .. " " .. shq(WORK) .. " 2>/dev/null")
+  local r = {}
+  for line in out:gmatch("[^\n]+") do
+    local k, v = line:match("^(%u+)=(.*)$")
+    if k then r[k] = v end
+  end
+  local function nz(v) return (v and v ~= "") and v or nil end
+  local res = { rc = tonumber(r.RC or ""), status = tonumber(r.STATUS or ""), len = tonumber(r.LEN or ""),
+    etag = nz(r.ETAG), lastmod = nz(r.LASTMOD) }
+  local tot = (r.RANGE or ""):match("/(%d+)%s*$")
+  res.ranges = res.status == 206 and tot ~= nil
+  res.total = tonumber(tot or "") or ((res.status == 200) and res.len or nil)
+  return res
+end
 
 -- ---------------------------------------------------------------------------
 -- Extrator para RAR e 7z. Prefere o 7-Zip incluso (bin/7zzs, aarch64 estatico),
@@ -270,23 +399,10 @@ local function fetch_runtimes()
       local part = WORK .. "/" .. name .. ".part"
       local expected = tonumber(r.size)
       send({ t = "phase", phase = "download", total = expected, label = name })
-      os.remove(part); os.remove(RCF); os.remove(PIDF)
-      sh("sh " .. shq(job.fetch_sh) .. " get " .. shq(r.url) .. " " .. shq(part) .. " "
-        .. shq(PIDF) .. " " .. shq(RCF) .. " >" .. shq(WORK .. "/fetch_rt.log") .. " 2>&1 &")
-      local rc, last = nil, -1
-      while true do
-        love.timer.sleep(0.25)
-        local s = read_all(RCF)
-        if s and s:match("%d+") then rc = tonumber(s:match("%d+")); break end
-        if check_cancel() then
-          local pid = (read_all(PIDF) or ""):match("%d+")
-          if pid then sh("kill " .. pid .. " 2>/dev/null") end
-          for _ = 1, 40 do love.timer.sleep(0.1); if read_all(RCF) then break end end
-          return "cancel"
-        end
-        local done = fsize(part) or 0
-        if done ~= last then send({ t = "progress", phase = "download", done = done, total = expected }); last = done end
-      end
+      os.remove(part)
+      start_fetch(r.url, part, WORK .. "/fetch_rt.log")
+      local rc = watch_fetch(part, expected)
+      if rc == "cancel" then return "cancel" end
       if rc ~= 0 then
         if rc == 23 then return nil, "no_space", "" end
         return nil, "runtime_failed", name .. " (rc=" .. tostring(rc) .. ")"
@@ -370,13 +486,22 @@ local function run()
 
   -- 0) preparacao -----------------------------------------------------------
   send({ t = "phase", phase = "prepare" })
+  -- parcial de um pedido anterior: sobrevive a erros ate a decisao de retomar
+  KEEP = not job.local_file
+  if not job.local_file then
+    -- download antigo deste mesmo job ainda vivo (app fechado no meio): para
+    -- antes, para nao haver dois processos gravando no mesmo arquivo. O [d]
+    -- evita que o pkill ache o proprio shell que o executa.
+    local pat = (WORK .. "/[d]ownload.zip.part"):gsub("%.", "\\.")
+    sh("pkill -f " .. shq(pat) .. " >/dev/null 2>&1")
+  end
   if not sh("test -d " .. shq(job.ports_dir)) then
     return fail("no_ports_dir", job.ports_dir)
   end
   if not sh("test -w " .. shq(job.ports_dir)) then
     return fail("no_write", job.ports_dir)
   end
-  cleanup()
+  if job.local_file then cleanup() else cleanup_keep() end
   if not sh("mkdir -p " .. shq(STAGE)) then
     return fail("no_write", job.tmp_dir)
   end
@@ -399,51 +524,96 @@ local function run()
   -- tamanho esperado: o que o SERVIDOR informa vale mais que o do catalogo.
   -- Catalogos costumam trazer o tamanho arredondado (ex.: 1.6 GB em bytes) e
   -- isso fazia um download completo ser recusado como "incompleto".
+  -- A consulta (probe, 1 KB com Range) tambem diz se da para continuar um
+  -- parcial (206) e traz ETag/Last-Modified para saber se o arquivo mudou.
   local catalog_size = tonumber(job.expected_size)
   if catalog_size and catalog_size <= 0 then catalog_size = nil end
-  local h = capture("sh " .. shq(job.fetch_sh) .. " head " .. shq(job.url) .. " 2>/dev/null")
-  local server_size = tonumber(h:match("(%d+)"))
+  local info = probe(job.url)
+  local server_size
+  if info.status == 200 or info.status == 206 then
+    server_size = info.total
+  end
+  if not server_size then
+    local h = capture("sh " .. shq(job.fetch_sh) .. " head " .. shq(job.url) .. " 2>/dev/null")
+    server_size = tonumber(h:match("(%d+)"))
+  end
   if server_size and server_size <= 0 then server_size = nil end
   if server_size and catalog_size and server_size ~= catalog_size then
     log("tamanho do catalogo (" .. catalog_size .. ") difere do servidor (" .. server_size .. "): usando o do servidor")
   end
   expected = server_size or catalog_size
   job.server_size = server_size
+  log("servidor:", "HTTP " .. tostring(info.status), info.ranges and "aceita continuar (Range)" or "sem Range",
+    "etag=" .. tostring(info.etag), "last-modified=" .. tostring(info.lastmod))
 
-  -- 1) espaco para o ZIP ----------------------------------------------------
+  -- 1) parcial de antes: continua so se for o MESMO arquivo -------------------
+  local now = os.time()
+  local have = fsize(PART) or 0
+  local meta = read_meta()
+  local resume_from = 0
+  if have > 0 then
+    local why
+    if not info.ranges then
+      why = "o servidor nao aceita continuar (sem Range)"
+    elseif meta then
+      if meta.url ~= job.url then why = "o link mudou"
+      elseif meta.etag and info.etag and meta.etag ~= info.etag then why = "o arquivo mudou (ETag)"
+      elseif meta.last_modified and info.lastmod and meta.last_modified ~= info.lastmod then why = "o arquivo mudou (Last-Modified)"
+      elseif tonumber(meta.total) and server_size and tonumber(meta.total) ~= server_size then why = "o tamanho mudou"
+      elseif now - (tonumber(meta.updated) or tonumber(meta.created) or 0) > MAX_AGE then why = "parcial com mais de 7 dias"
+      end
+    elseif not server_size then
+      -- parcial sem metadados (versao anterior do hub fechada no meio): so
+      -- continua quando da para conferir o tamanho final
+      why = "parcial sem metadados e servidor sem tamanho"
+    end
+    if not why and server_size and have > server_size then why = "parcial maior que o arquivo" end
+    if why then
+      log("parcial descartado (" .. why .. "):", have, "bytes")
+      os.remove(PART)
+      meta = nil
+      send({ t = "resume_discard", reason = why })
+    else
+      resume_from = have
+      log("continuando o download do byte", have, "de", tostring(server_size))
+    end
+  else
+    meta = nil
+  end
+  if resume_from == 0 then os.remove(META) end
+  KEEP = info.ranges and true or false
+
+  -- 2) espaco para o que falta ----------------------------------------------
   local avail = free_bytes(job.ports_dir)
-  if expected and avail and avail < expected + job.margin then
-    return fail("no_space", string.format("%d|%d", expected + job.margin, avail))
+  if expected and avail and avail < (expected - resume_from) + job.margin then
+    return fail("no_space", string.format("%d|%d", (expected - resume_from) + job.margin, avail))
   end
   if check_cancel() then return cancel_done() end
 
-  -- 2) download (em segundo plano, com acompanhamento) ---------------------
+  -- 3) download (em segundo plano, com acompanhamento) ---------------------
+  META_T = { v = 1, id = job.id, slug = job.slug, name = job.name, url = job.url,
+    total = expected, server_size = server_size, etag = info.etag, last_modified = info.lastmod,
+    ranges = info.ranges or false, created = (meta and tonumber(meta.created)) or now, updated = now,
+    state = "downloading", done = resume_from }
+  if KEEP then write_meta(META_T) end
+  send({ t = "resumable", ok = KEEP })
+  -- If-Range: so ETag forte (sem W/) ou Last-Modified
+  local ifrange = (info.etag and not info.etag:match("^W/")) and info.etag or info.lastmod
   send({ t = "phase", phase = "download", total = expected })
-  os.remove(PART); os.remove(RCF); os.remove(PIDF)
-  sh("sh " .. shq(job.fetch_sh) .. " get " .. shq(job.url) .. " " .. shq(PART) .. " "
-    .. shq(PIDF) .. " " .. shq(RCF) .. " >" .. shq(WORK .. "/fetch.log") .. " 2>&1 &")
-
-  local last_push = -1
+  if resume_from > 0 then
+    send({ t = "resumed", from = resume_from, total = expected })
+    send({ t = "progress", phase = "download", done = resume_from, total = expected })
+  end
   local rc
-  while true do
-    love.timer.sleep(0.25)
-    local s = read_all(RCF)
-    if s and s:match("%d+") then rc = tonumber(s:match("%d+")); break end
-    if check_cancel() then
-      local pid = (read_all(PIDF) or ""):match("%d+")
-      if pid then sh("kill " .. pid .. " 2>/dev/null") end
-      -- espera o script terminar
-      for _ = 1, 40 do
-        love.timer.sleep(0.1)
-        if read_all(RCF) then break end
-      end
-      return cancel_done()
-    end
-    local done = fsize(PART) or 0
-    if done ~= last_push then
-      send({ t = "progress", phase = "download", done = done, total = expected })
-      last_push = done
-    end
+  if server_size and resume_from == server_size then
+    log("parcial ja estava completo")
+    rc = 0
+  else
+    start_fetch(job.url, PART, WORK .. "/fetch.log", KEEP and ifrange or nil)
+    rc = watch_fetch(PART, expected, function(b)
+      if KEEP and META_T then META_T.done = b; META_T.updated = os.time(); write_meta(META_T) end
+    end)
+    if rc == "cancel" then return cancel_done() end
   end
 
   got = fsize(PART) or 0
@@ -451,11 +621,25 @@ local function run()
   if rc ~= 0 then
     local flog = read_all(WORK .. "/fetch.log") or ""
     log("fetch rc=", rc, flog)
-    if rc == 22 then return fail("http_error", flog:match("error:%s*([^\n]+)") or "") end
+    if rc == 22 then
+      local msg = flog:match("error:%s*([^\n]+)") or ""
+      local http = tonumber(msg:match("(%d%d%d)") or "")
+      -- erro do servidor passageiro (5xx, 408, 429): o parcial continua valendo
+      if http and (http >= 500 or http == 408 or http == 429) then keep_partial("paused", rc)
+      else KEEP = false end
+      return fail("http_error", msg)
+    end
     if rc == 127 then return fail("no_curl") end
-    if rc == 23 then return fail("no_space", "") end
+    if rc == 23 then keep_partial("paused", rc); return fail("no_space", "") end
+    -- rede: o parcial fica guardado para o proximo pedido do mesmo download
+    if keep_partial("paused", rc) then
+      return fail("net_paused", string.format("%d|%d|%d", got, expected or 0, rc))
+    end
     return fail("net_error", tostring(rc))
   end
+  -- baixou inteiro: daqui em diante qualquer falha apaga o arquivo
+  KEEP = false
+  os.remove(META)
   end -- fim do download
 
   -- 3) verificacao ----------------------------------------------------------

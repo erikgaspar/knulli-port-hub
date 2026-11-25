@@ -5,7 +5,8 @@
 #   fetch.sh get  URL SAIDA ARQ_PID ARQ_RC [MAX_SEGUNDOS]
 #       Baixa URL para SAIDA. Grava o PID do processo de download em ARQ_PID
 #       (para permitir cancelar) e o codigo de saida final em ARQ_RC.
-#       Tenta retomar (-C -) em quedas de conexao, ate 3 tentativas.
+#       Tenta retomar (-C -) em quedas de conexao, ate 3 tentativas
+#       (com PH_STATUS: ate 5 seguidas com espera crescente, veja abaixo).
 #   fetch.sh head URL
 #       Imprime o tamanho (Content-Length) final do arquivo, se o servidor informar.
 #   fetch.sh part URL SAIDA BYTES
@@ -109,18 +110,37 @@ mkdir -p "$(dirname "$OUTFILE")" 2>/dev/null
 
 trap 'echo 143 > "$RCFILE"; exit 143' TERM INT
 
+# Retomada (instalador de ports): com PH_STATUS definido, quedas de rede viram
+# ate 5 novas tentativas seguidas (espera 5, 15, 30, 60 e 90 s) que CONTINUAM
+# do ponto (curl -C -, Range). Tentativa que avancou mais de 1 MB zera a
+# contagem. Em PH_STATUS vai uma linha para a interface:
+#   retry N MAX RC ESPERA BYTES   (esperando para tentar de novo)
+#   resume N BYTES                (tentativa N continuando do byte BYTES)
+#   restart                       (servidor nao aceitou continuar: do zero)
+# PH_IFRANGE = ETag forte ou Last-Modified do arquivo: se mudou no servidor,
+# ele manda o arquivo inteiro (200), o curl para (33) e recomeca do zero.
+STATUSF="${PH_STATUS:-}"
+IFRANGE="${PH_IFRANGE:-}"
+st() { [ -n "$STATUSF" ] && echo "$*" > "$STATUSF"; }
+bytes_of() { if [ -f "$1" ]; then wc -c < "$1" | tr -d ' '; else echo 0; fi; }
+
 run_dl() {
   # $1 = extra flags (ex.: -k). Roda em segundo plano e espera, para que o PID
   # gravado seja o do curl/wget (assim o cancelamento interrompe de verdade).
+  EXTRA="$1"
   if have curl; then
-    if [ "$MAXT" -gt 0 ] 2>/dev/null; then MT="--max-time $MAXT"; else MT=""; fi
-    if [ -s "$OUTFILE" ]; then RESUME="-C -"; else RESUME=""; fi
+    set -- -L -f -s -S --connect-timeout 20 --speed-limit 1 --speed-time 60
+    if [ "$MAXT" -gt 0 ] 2>/dev/null; then set -- "$@" --max-time "$MAXT"; fi
+    if [ -s "$OUTFILE" ]; then
+      set -- "$@" -C -
+      if [ -n "$IFRANGE" ]; then set -- "$@" -H "If-Range: $IFRANGE"; fi
+    fi
     # shellcheck disable=SC2086
-    curl -L -f -s -S --connect-timeout 20 --speed-limit 1 --speed-time 60 $MT $RESUME $1 \
-      -A "$UA" -o "$OUTFILE" "$URL" &
+    [ -n "$EXTRA" ] && set -- "$@" $EXTRA
+    curl "$@" -A "$UA" -o "$OUTFILE" "$URL" &
   elif have wget; then
     W=""
-    [ -n "$1" ] && W="--no-check-certificate"
+    [ -n "$EXTRA" ] && W="--no-check-certificate"
     # shellcheck disable=SC2086
     wget -q -c -T 30 $W -U "$UA" -O "$OUTFILE" "$URL" &
   else
@@ -133,27 +153,78 @@ run_dl() {
   return $?
 }
 
+# espera cancelavel: o PID gravado passa a ser o do sleep
+pause_for() {
+  sleep "$1" &
+  SPID=$!
+  echo "$SPID" > "$PIDFILE"
+  wait "$SPID"
+  if [ $? -ne 0 ]; then echo 143 > "$RCFILE"; exit 143; fi
+}
+
 ATTEMPT=0
 FLAGS=""
 RC=1
-while [ $ATTEMPT -lt 4 ]; do
-  ATTEMPT=$((ATTEMPT + 1))
-  run_dl "$FLAGS"
-  RC=$?
-  [ $RC -eq 0 ] && break
-  # cancelado (SIGTERM/SIGKILL)
-  if [ $RC -eq 143 ] || [ $RC -eq 137 ] || [ $RC -eq 130 ]; then break; fi
-  if is_tls_error "$RC" && [ -z "$FLAGS" ]; then
-    echo "[fetch] erro TLS ($RC); tentando novamente sem verificar certificado" >&2
-    FLAGS="-k"
-    continue
-  fi
-  # 33 = servidor nao aceita retomar: recomeca do zero
-  if [ $RC -eq 33 ]; then rm -f "$OUTFILE"; continue; fi
-  # quedas de conexao/tempo esgotado: tenta retomar
-  case "$RC" in 7|18|28|52|55|56|92|4) sleep 2; continue ;; esac
-  break
-done
+if [ -n "$STATUSF" ]; then
+  FAILS=0; RESTARTS=0
+  while [ $ATTEMPT -lt 60 ]; do
+    ATTEMPT=$((ATTEMPT + 1))
+    BEFORE=$(bytes_of "$OUTFILE")
+    run_dl "$FLAGS"
+    RC=$?
+    [ $RC -eq 0 ] && break
+    if [ $RC -eq 143 ] || [ $RC -eq 137 ] || [ $RC -eq 130 ]; then break; fi
+    if is_tls_error "$RC" && [ -z "$FLAGS" ]; then
+      echo "[fetch] erro TLS ($RC); tentando novamente sem verificar certificado" >&2
+      FLAGS="-k"
+      continue
+    fi
+    if [ $RC -eq 33 ]; then
+      # servidor nao aceitou o Range (ou o arquivo mudou): recomeca do zero
+      RESTARTS=$((RESTARTS + 1))
+      [ $RESTARTS -gt 2 ] && break
+      echo "[fetch] servidor nao aceitou continuar; recomecando do zero" >&2
+      rm -f "$OUTFILE"; IFRANGE=""
+      st "restart"
+      continue
+    fi
+    case "$RC" in
+      4|6|7|16|18|28|35|52|55|56|92)
+        AFTER=$(bytes_of "$OUTFILE")
+        if [ "$AFTER" -gt $((BEFORE + 1048576)) ] 2>/dev/null; then FAILS=0; fi
+        FAILS=$((FAILS + 1))
+        [ $FAILS -gt 5 ] && break
+        # PH_RETRY_WAITS: esperas trocadas (so para testes), ex. "1 1 1 1 1"
+        WT=$(echo "${PH_RETRY_WAITS:-5 15 30 60 90}" | awk -v n="$FAILS" '{ print (n <= NF) ? $n : $NF }')
+        echo "[fetch] conexao caiu (rc=$RC, $AFTER bytes); tentativa $FAILS/5 em ${WT}s" >&2
+        st "retry $FAILS 5 $RC $WT $AFTER"
+        pause_for "$WT"
+        st "resume $FAILS $(bytes_of "$OUTFILE")"
+        continue
+        ;;
+    esac
+    break
+  done
+else
+  while [ $ATTEMPT -lt 4 ]; do
+    ATTEMPT=$((ATTEMPT + 1))
+    run_dl "$FLAGS"
+    RC=$?
+    [ $RC -eq 0 ] && break
+    # cancelado (SIGTERM/SIGKILL)
+    if [ $RC -eq 143 ] || [ $RC -eq 137 ] || [ $RC -eq 130 ]; then break; fi
+    if is_tls_error "$RC" && [ -z "$FLAGS" ]; then
+      echo "[fetch] erro TLS ($RC); tentando novamente sem verificar certificado" >&2
+      FLAGS="-k"
+      continue
+    fi
+    # 33 = servidor nao aceita retomar: recomeca do zero
+    if [ $RC -eq 33 ]; then rm -f "$OUTFILE"; continue; fi
+    # quedas de conexao/tempo esgotado: tenta retomar
+    case "$RC" in 7|18|28|52|55|56|92|4) sleep 2; continue ;; esac
+    break
+  done
+fi
 
 echo "$RC" > "$RCFILE"
 exit "$RC"

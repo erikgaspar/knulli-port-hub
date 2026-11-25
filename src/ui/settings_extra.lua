@@ -348,6 +348,29 @@ function X.downloads_rows(dl_status)
             { label = L("CANCELAR") } } })
       end },
   }
+  -- downloads incompletos guardados para continuar (core/partials.lua)
+  rows[#rows + 1] = { kind = "action", label = L("Downloads incompletos"),
+    desc = L("Quando a conexão cai de vez, o download é cancelado ou o hub é fechado no meio, o que já foi baixado fica guardado: pedindo o mesmo download de novo, ele continua de onde parou. Parciais com mais de 7 dias ou de itens que saíram do catálogo são apagados sozinhos. Selecione para apagar todos agora."),
+    value = function()
+      local n, bytes = require("core.partials").summary()
+      return string.format("%d (%s)", n, U.format_bytes(bytes))
+    end,
+    color = function() local n = require("core.partials").summary(); return n > 0 and T.c.yellow or T.c.text end,
+    enabled = function() return (require("core.partials").summary()) > 0 end,
+    on_a = function()
+      local P = require("core.partials")
+      P.invalidate()
+      local n, bytes = P.summary()
+      if n == 0 then App.toast(L("Nenhum download incompleto."), "info"); return end
+      App.show_dialog({ title = L("Limpar downloads incompletos?"), kind = "warn",
+        body = string.format(I18N.tr(L("%d download(s) incompleto(s) serão apagados (%s). Pedindo de novo, eles começam do zero.")),
+          n, U.format_bytes(bytes)),
+        buttons = { { label = L("LIMPAR"), fn = function()
+          local cn, cb = P.clear_all()
+          pcall(function() require("core.downloads").sync_partials() end)
+          App.toast(string.format(I18N.tr(L("%d download(s) incompleto(s) apagado(s): %s liberados.")), cn, U.format_bytes(cb)), "ok")
+        end }, { label = L("CANCELAR") } }, sel = 2 })
+    end }
   -- Knulli Port Hub: itens com download quebrado (core/broken.lua)
   if C.KNULLI then
     local B = require("core.broken")
