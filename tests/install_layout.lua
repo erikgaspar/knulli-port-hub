@@ -13,16 +13,20 @@ local function write(path, content)
   local f=assert(io.open(path,'wb')); f:write(content); f:close()
 end
 local function exists(path) local f=io.open(path,'rb'); if f then f:close(); return true end; return false end
+local function run(command)
+  local result=os.execute(command)
+  return result==0 or result==true
+end
 local function test(name, prefix, mode, expected, multi, backup_fail)
   local dir=base..'/'..name
-  assert(os.execute('mkdir -p '..dir..'/input/'..prefix..'game '..dir..'/dest') == 0)
+  assert(run('mkdir -p '..dir..'/input/'..prefix..'game '..dir..'/dest'))
   write(dir..'/input/'..prefix..'Game.sh', '#!/bin/sh\nGAMEDIR="/roms/ports/game"\nexit 0\n')
   write(dir..'/input/'..prefix..'game/data', 'fixture')
   if multi then
-    assert(os.execute('mkdir -p '..dir..'/input/other') == 0)
+    assert(run('mkdir -p '..dir..'/input/other'))
     write(dir..'/input/other/Other.sh', '#!/bin/sh\n')
   end
-  assert(os.execute('cd '..dir..'/input && zip -qr '..dir..'/fixture.zip .') == 0)
+  assert(run('cd '..dir..'/input && zip -qr '..dir..'/fixture.zip .'))
   local backup=base..'/backups'
   if backup_fail then backup=dir..'/notdir'; write(backup,'fixture') end
   messages={}
@@ -67,7 +71,7 @@ local v7="NXV7_PORT='ducktales'\nfor root in /userdata/roms/ports /roms/ports; d
 assert(patch.apply(v7,'/userdata/roms/ports','ducktales-remastered')==v7)
 assert(patch.apply(original,'/userdata/roms/ports','other'):find('if [ -f "$GAMEDIR/libs.aarch64/libmali',1,true))
 write('/tmp/strikers-patched.sh',patched)
-assert(os.execute('bash -n /tmp/strikers-patched.sh')==0)
+assert(run('bash -n /tmp/strikers-patched.sh'))
 print('PASS launcher Strikers, caminhos, idempotencia e bash -n')
 
 -- Quem tentou instalar antes da correcao deve poder tentar novamente.
