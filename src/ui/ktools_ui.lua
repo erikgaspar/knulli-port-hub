@@ -37,6 +37,10 @@ local function entries()
     function() call("ui.libtools_ui", "open") end, "library")
   add(App.screens.fullbackup ~= nil, L("SAVES"), L("Backup completo dos saves"), L("Saves de todos os sistemas e ports num arquivo"),
     function() App.push("fullbackup") end, "backup")
+  local okz, Z = pcall(require, "core.zram")
+  add(has("ui.zram_ui") and okz and Z.available(), L("DESEMPENHO"), L("Memória extra (zram)"),
+    L("Usa parte da RAM comprimida como memória extra. Ajuda ports pesados a não fecharem por falta de memória."),
+    function() call("ui.zram_ui", "open") end, "zram")
   add(has("ui.perf_ui"), L("DESEMPENHO"), L("Relatórios de compatibilidade"), L("Como cada port rodou no RG35XXH; exportar para o catálogo"),
     function() call("ui.perf_ui", "open_reports") end, "reports")
   add(App.screens.monitor ~= nil, L("SISTEMA"), L("Monitor do console"), L("Temperatura, CPU, RAM e bateria ao vivo"),

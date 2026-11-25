@@ -374,6 +374,11 @@ function PS.icon(id, x, y, size, c)
     lg.arc("line", "open", 12, 19, 10, -math.pi * 0.76, -math.pi * 0.24, 10)
     lg.arc("line", "open", 12, 19, 5, -math.pi * 0.74, -math.pi * 0.26, 8)
     lg.circle("fill", 12, 19, 1.4)
+  elseif id == "ram" then
+    -- pente de memoria: placa com chips e contatos embaixo
+    lg.rectangle("line", 2, 6, 20, 11, 2, 2)
+    lg.rectangle("fill", 5, 9, 3, 5); lg.rectangle("fill", 10.5, 9, 3, 5); lg.rectangle("fill", 16, 9, 3, 5)
+    for xx = 4, 20, 3 do lg.line(xx, 17, xx, 20) end
   elseif id == "bt" then
     lg.line(7, 7, 17, 17, 12, 22, 12, 2, 17, 7, 7, 17)
   elseif id == "report" then

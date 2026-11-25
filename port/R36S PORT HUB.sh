@@ -59,6 +59,7 @@ export PORTHUB_PORTS_DIR="/$directory/ports"
 rm -f "$CONFDIR/.restart_es"
 rm -f "$CONFDIR/.run_tool"
 rm -f "$CONFDIR/.run_port"
+rm -f "$CONFDIR/.port_exit"
 rm -f "$CONFDIR/.run_game"
 rm -f "$CONFDIR/.power"
 rm -f "$CONFDIR/.es_theme"
@@ -258,6 +259,12 @@ while true; do
     esac
     if [ -n "$PORT_SH" ] && [ -f "$PORTS_ROOT/$PORT_SH" ]; then
       echo "[launcher] Iniciando port: $PORT_SH"
+      # Knulli Port Hub: para saber depois se o port fechou por falta de memoria
+      # (OOM: codigo 137, "Killed" no log, "Killed process" no dmesg)
+      PH_OOM0=$(dmesg 2>/dev/null | grep -ci "killed process")
+      PH_MARK=/tmp/porthub-port.start
+      : > "$PH_MARK" 2>/dev/null
+      PH_LOG0=$(wc -l < "$GAMEDIR/log.txt" 2>/dev/null)
       sync
       (
         cd "$PORTS_ROOT/$PORT_SUB" || exit 1
@@ -275,6 +282,26 @@ while true; do
       # seguranca: se o perf_run foi morto junto com o grupo, desfaz o perfil
       [ -f /tmp/porthub-perf.state ] && bash "$GAMEDIR/bin/perf_run.sh" --restore
       echo "[launcher] Port encerrado (codigo $PORT_RC); voltando ao R36S PORT HUB"
+      if [ "$PORTHUB_FW" = "knulli" ]; then
+        PH_OOM=0
+        [ "$PORT_RC" = 137 ] && PH_OOM=1
+        PH_OOM1=$(dmesg 2>/dev/null | grep -ci "killed process")
+        [ "${PH_OOM1:-0}" -gt "${PH_OOM0:-0}" ] 2>/dev/null && PH_OOM=1
+        # saida do port no nosso log e nos log.txt que o port escreveu nesta sessao
+        PH_PAT='(^|[^[:alpha:]])Killed([^[:alpha:]]|$)|out of memory'
+        if [ "$PH_OOM" = 0 ]; then
+          tail -n +"$(( ${PH_LOG0:-0} + 1 ))" "$GAMEDIR/log.txt" 2>/dev/null | grep -v '^\[launcher\]' \
+            | grep -qiE "$PH_PAT" && PH_OOM=1
+        fi
+        if [ "$PH_OOM" = 0 ] && [ -f "$PH_MARK" ]; then
+          for PH_L in $(find "$PORTS_ROOT" -maxdepth 2 -name log.txt -newer "$PH_MARK" 2>/dev/null | grep -v "/r36sporthub/" | head -n 5); do
+            tail -n 200 "$PH_L" 2>/dev/null | grep -qiE "$PH_PAT" && { PH_OOM=1; break; }
+          done
+        fi
+        rm -f "$PH_MARK"
+        [ "$PH_OOM" = 1 ] && echo "[launcher] O port parece ter fechado por falta de memoria"
+        echo "$PORT_ID|$PORT_RC|$PH_OOM" > "$CONFDIR/.port_exit"
+      fi
       export PORTHUB_RETURN="port|$PORT_ID"
     else
       echo "[launcher] Pedido de port ignorado (script invalido): $PORT_REQ"

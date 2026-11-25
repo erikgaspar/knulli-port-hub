@@ -836,6 +836,19 @@ function App.launch_port(p, opts)
       if opts and opts.perf ~= nil then perf = opts.perf and true or false else perf = Perf.always(p.id) end
     end
   end
+  -- Knulli: port pesado ou que ja fechou por falta de memoria -> oferece a
+  -- memoria extra (zram) ou o modo desempenho antes (uma pergunta por abertura)
+  if C.KNULLI and not p.script_override and not (opts and opts.mem_asked) then
+    local okz, asked = pcall(function()
+      return require("ui.zram_ui").before_launch(p, perf, function(extra)
+        local o = { mem_asked = true, perf = (opts and opts.perf) }
+        for k, v in pairs(extra or {}) do o[k] = v end
+        App.launch_port(p, o)
+      end)
+    end)
+    if not okz then U.log("zram_ui.before_launch:", tostring(asked)) end
+    if okz and asked then return end
+  end
   local function go()
     os.execute("mkdir -p " .. U.shq(C.APP_DIR .. "/conf") .. " 2>/dev/null")
     if not U.write_file(C.APP_DIR .. "/conf/.run_port", script .. "|" .. tostring(p.id) .. (perf and "|perf" or "") .. "\n") then
@@ -856,6 +869,12 @@ function App.launch_port(p, opts)
   end
   local body = string.format(L("O R36S PORT HUB vai fechar e %s vai abrir.\nAo sair do jogo, o hub abre de novo.\n\nScript: %s"), p.name, script)
   if perf then body = body .. L("\n\nModo desempenho: CPU no máximo, GPU a 696 MHz e o menu pausado enquanto joga. Tudo volta ao normal ao sair.") end
+  if perf then
+    local okz, Z = pcall(require, "core.zram")
+    if okz and Z.available() and Z.with_perf() and not Z.status().active then
+      body = body .. I18N.tr(L("\nA memória extra (zram) liga junto e desliga ao sair."))
+    end
+  end
   if Ftp.running() then body = body .. L("\n\nO servidor FTP será parado.") end
   App.show_dialog({ title = perf and L("Iniciar em modo desempenho?") or L("Iniciar o jogo?"), kind = "info", body = body,
     buttons = { { label = L("INICIAR"), fn = function() if Ftp.running() then Ftp.stop_wait() end; go() end },
@@ -881,6 +900,9 @@ local function return_from_tool()
     if p then App.push("details", { port = p }) end
     -- Knulli: "Como rodou?" (uma vez por sessao de jogo, se o port ainda nao tem avaliacao)
     if C.KNULLI then
+      -- fechou por falta de memoria? (conf/.port_exit do launcher)
+      local okz, zerr = pcall(function() require("ui.zram_ui").after_play(from) end)
+      if not okz then U.log("zram_ui.after_play:", tostring(zerr)) end
       local okp, perr = pcall(function() require("ui.perf_ui").after_play(p, from) end)
       if not okp then U.log("perf_ui.after_play:", tostring(perr)) end
     end

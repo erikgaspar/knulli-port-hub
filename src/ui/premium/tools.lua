@@ -19,13 +19,13 @@ local GX, GY, GW, GH, GG = 20, 54, 192, 124, 12
 local WY, WH = 480 - 34 - 12 - 40, 40
 
 local GRID = { "space", "romtrans", "chd", "library", "backup", "monitor" }
-local WIDE = { "bluetooth", "reports" }
+local WIDE = { "zram", "bluetooth", "reports" }
 local TITLE = {
   space = L("Liberar espaço"), romtrans = L("Traduzir jogos"), chd = L("Converter para CHD"),
   library = L("Organizar biblioteca"), backup = L("Backup dos saves"), monitor = L("Monitor"),
-  bluetooth = L("Bluetooth"), reports = L("Relatórios"),
+  bluetooth = L("Bluetooth"), reports = L("Relatórios"), zram = L("Memória extra"),
 }
-local ICON = { bluetooth = "bt", reports = "report" }
+local ICON = { bluetooth = "bt", reports = "report", zram = "ram" }
 -- cartoes com arte de fundo (arte larga dos ports do console)
 local ART = { space = 1, romtrans = 2, chd = 3, backup = 4 }
 
@@ -57,6 +57,8 @@ function S:load_info()
   info.trans = ok and n or 0
   local okr, list = pcall(function() return require("core.h700reports").list() end)
   info.reports = okr and #list or nil
+  self.info = info
+  self:load_zram()
   -- arte: ports do console (abertos recentemente / instalados) e destaques
   local arts, seen = {}, {}
   local function add(p) if p and not p.builtin and not seen[p] then seen[p] = true; arts[#arts + 1] = p end end
@@ -67,9 +69,19 @@ function S:load_info()
   self.info = info
 end
 
+--- estado da memoria extra (leituras de /proc e /sys)
+function S:load_zram()
+  local okz, Z = pcall(require, "core.zram")
+  if okz and Z.available() then
+    local ok, st = pcall(Z.status)
+    self.zram = ok and st or nil
+  end
+end
+
 function S:update(dt)
   if (App.t or 0) - self.temp_t > 2 then
     self.temp_t = App.t or 0
+    if self.zram then self:load_zram() end
     local okm, Mon = pcall(require, "core.monitor")
     local t = okm and Mon.cpu_temp and select(2, pcall(Mon.cpu_temp)) or nil
     self.temp = type(t) == "number" and t or nil
@@ -101,6 +113,11 @@ local function value_of(self, id)
   elseif id == "monitor" then
     if self.temp then return string.format("%d °C", math.floor(self.temp + 0.5)), PS.font("x", 20), self.temp_warn and c.warn or c.text end
     return L("CPU, RAM e bateria"), PS.font("m", 13), c.dim2
+  elseif id == "zram" then
+    local z = self.zram
+    if not z then return "", PS.font("r", 12), c.dim end
+    if z.active then return string.format(PS.tr(L("Ligada  •  %s")), require("core.zram").mb(z.size)), PS.font("m", 12), c.accent end
+    return L("Desligada"), PS.font("r", 12), c.dim
   elseif id == "bluetooth" then return L("Controles"), PS.font("r", 12), c.dim
   elseif id == "reports" then
     local n = info.reports
@@ -183,13 +200,25 @@ local function draw_wide(self, j, it)
   local i = #self.grid + j
   local on = self.sel == i
   local k = PS.fk("pt" .. i, on)
-  local w = (600 - 10) / 2
-  local x, y, ww, hh = PS.grow(GX + (j - 1) * (w + 10), WY, w, WH, k)
+  local nw = math.max(1, #self.wide)
+  local gap = nw >= 3 and GG or 10
+  local w = (600 - gap * (nw - 1)) / nw
+  -- 3 cartoes: mais altos, com o titulo em cima e o valor embaixo
+  local tall = nw >= 3
+  local wh = tall and 60 or WH
+  local x, y, ww, hh = PS.grow(GX + (j - 1) * (w + gap), WY + WH - wh, w, wh, k)
   PS.rect(x, y, ww, hh, c.surf, 12)
   if k > 0 then PS.focus(x, y, ww, hh, 12, k) end
   PS.icon(ICON[it.id] or "gear", x + 14, y + hh / 2 - 9, 18, c.dim2)
   local f = PS.font("m", 13)
   local v, vf, vc = value_of(self, it.id)
+  if tall then
+    local th = f:getHeight() + 3 + vf:getHeight()
+    local ty = y + hh / 2 - th / 2
+    PS.fit(f, TITLE[it.id] or it.e.text, x + 42, ty, ww - 42 - 12, c.text)
+    PS.fit(vf, v, x + 42, ty + f:getHeight() + 3, ww - 42 - 12, vc)
+    return
+  end
   local vw = vf:getWidth(PS.tr(v))
   PS.fit(f, TITLE[it.id] or it.e.text, x + 42, y + hh / 2 - f:getHeight() / 2, ww - 42 - 14 - vw - 10, c.text)
   PS.text(vf, v, x + ww - 14 - vw, y + hh / 2 - vf:getHeight() / 2, vc)
@@ -219,7 +248,9 @@ function S:action(act)
     elseif act == "up" and row > 0 then i = i - 3
     elseif act == "down" then
       if i + 3 <= ng then i = i + 3
-      elseif nw > 0 then i = ng + (col < 2 and 1 or math.min(2, nw)) end
+      elseif nw > 0 then
+        if nw >= 3 then i = ng + math.min(col + 1, nw) else i = ng + (col < 2 and 1 or math.min(2, nw)) end
+      end
     end
   else
     local j = i - ng
@@ -227,7 +258,7 @@ function S:action(act)
     elseif act == "right" and j < nw then i = i + 1
     elseif act == "up" and ng > 0 then
       local last_row = math.floor((ng - 1) / 3)
-      local col = j == 1 and 0 or 2
+      local col = nw >= 3 and math.min(j - 1, 2) or (j == 1 and 0 or 2)
       i = math.min(ng, last_row * 3 + col + 1)
     end
   end

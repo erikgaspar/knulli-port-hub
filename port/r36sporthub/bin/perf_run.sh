@@ -9,7 +9,8 @@
 #
 #  Perfil (sem overclock): CPU em "performance" (todas as policies), GPU com
 #  piso na maior frequencia (696 MHz no H700) e o EmulationStation pausado
-#  (SIGSTOP) enquanto o jogo roda. Mede temperatura maxima/media (zonas
+#  (SIGSTOP) enquanto o jogo roda e, se estiver desligada, a memoria extra
+#  (zram do Knulli; conf/perf_zram_off desliga isso). Mede temperatura maxima/media (zonas
 #  termicas do SoC, sem a bateria) e a duracao, e grava o resumo em
 #  <pasta do app>/conf/perf/<id>.json.
 #
@@ -28,6 +29,8 @@ STATE=/tmp/porthub-perf.state                # o que restaurar
 TEMPF=/tmp/porthub-perf.temp                 # "max soma amostras" (mili-graus)
 GPU=/sys/class/devfreq/gpu
 SAMPLE=2                                     # segundos entre leituras
+ZRAM_SVC=/usr/share/knulli/services/zramswap   # memoria extra do Knulli
+ZRAM_OFF="$APP_DIR/conf/perf_zram_off"        # existe = nao ligar o zram junto
 
 log() { echo "[perf_run] $(date +%T) $*"; }
 
@@ -58,6 +61,7 @@ restore() {
       gov_*) echo "$v" > "/sys/devices/system/cpu/cpufreq/${k#gov_}/scaling_governor" 2>/dev/null ;;
       gpumin) echo "$v" > "$GPU/min_freq" 2>/dev/null ;;
       es) [ -n "$v" ] && kill -CONT $v 2>/dev/null ;;
+      zram) [ "$v" = 1 ] && [ -f "$ZRAM_SVC" ] && LC_ALL=C LANG=C bash "$ZRAM_SVC" stop >/dev/null 2>&1 ;;
     esac
   done < "$STATE"
   # o menu NUNCA pode ficar parado (tela congela): retoma qualquer ES
@@ -154,6 +158,12 @@ if [ -w "$GPU/min_freq" ]; then
   echo "gpumin=$(cat "$GPU/min_freq")" >> "$STATE"
   top=$(tr ' ' '\n' < "$GPU/available_frequencies" 2>/dev/null | grep -E '^[0-9]+$' | sort -n | tail -n 1)
   [ -n "$top" ] && echo "$top" > "$GPU/min_freq" 2>/dev/null
+fi
+# memoria extra (zram): liga so durante a sessao se estiver desligada (o Knulli
+# le "free" em ingles: LC_ALL=C; o resultado e conferido em /proc/swaps)
+if [ ! -f "$ZRAM_OFF" ] && [ -f "$ZRAM_SVC" ] && ! grep -q zram /proc/swaps 2>/dev/null; then
+  LC_ALL=C LANG=C bash "$ZRAM_SVC" start >/dev/null 2>&1
+  if grep -q zram /proc/swaps 2>/dev/null; then echo "zram=1" >> "$STATE"; log "zram ligado para esta sessao"; else log "zram: nao consegui ligar"; fi
 fi
 ES_PIDS=$(pidof emulationstation)
 echo "es=$ES_PIDS" >> "$STATE"
