@@ -256,6 +256,34 @@ function App.catalog_retry_update(dt)
   App.refresh_catalog(false)
 end
 
+--- Knulli: reverificacao dos itens com download quebrado (1x por dia por item,
+--- em segundo plano, so com a rede conectada) e aviso de quando voltam
+function App.broken_after_check(restored)
+  if #restored > 0 then
+    pcall(Catalog.reapply)
+    App.on_catalog_changed()
+  end
+end
+function App.broken_update()
+  local B = package.loaded["core.broken"] or require("core.broken")
+  if not App.broken_auto and (App.t or 0) > 15 and #(Catalog.hidden or {}) > 0 then
+    local st = require("core.net").current()
+    if st and st.connected then
+      App.broken_auto = true
+      B.recheck(Catalog.hidden, false, function(restored) App.broken_after_check(restored) end)
+    end
+  end
+  -- "X voltou a ficar disponivel": aviso discreto quando a Central estiver aberta
+  if #B.restored > 0 and not App.dialog and not App.toast_msg then
+    local top = App.current()
+    local n = top and top.name
+    if n == "sections" or n == "store" or n == "search" or n == "categories" or n == "menu" then
+      local name = table.remove(B.restored, 1)
+      App.toast(name .. L(" voltou a ficar disponível."), "info")
+    end
+  end
+end
+
 function App.on_catalog_changed()
   for _, s in ipairs(App.stack) do
     if s.on_catalog then s:on_catalog() end
@@ -1079,6 +1107,8 @@ function love.update(dt)
   end
   if was_busy and Installer.job and Installer.job.finished and not App.itest then
     Downloads.on_finished(Installer.job)
+    -- Knulli: item com download quebrado sai das listas antes de as telas refazerem
+    if Installer.job.broken_marked then pcall(Catalog.reapply) end
     Overlay.on_install_finished(App, Installer.job)
     App.sync_perf_wraps()
     -- ajustes recomendados do catalogo (h700.tune): depois que o aviso de instalado fechar
@@ -1134,6 +1164,7 @@ function love.update(dt)
     if not okt then U.log("tune_ui.after_install:", tostring(terr)) end
   end
   require("core.updnotice").update(dt)
+  if C.KNULLI then App.broken_update() end
   App.catalog_retry_update(dt)
   Stream.update()
   Recorder.update()

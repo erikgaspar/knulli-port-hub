@@ -305,7 +305,7 @@ function X.downloads_rows(dl_status)
     end
     return d, e
   end
-  return {
+  local rows = {
     { kind = "action", label = L("Senhas de arquivos compactados"),
       desc = L("Arquivos .zip, .rar e .7z com senha são abertos sozinhos: o hub tenta as senhas dos grupos de ports (R36SPORTSBR e R36XBR) e as suas, do arquivo senhas.txt na pasta do hub (uma por linha). Se nenhuma funcionar, o hub pede a senha no teclado e pode salvar no senhas.txt. Arquivos em partes (part1.rar, .7z.001, .zip.001) são extraídos juntos, como no PC."),
       value = function()
@@ -348,6 +348,23 @@ function X.downloads_rows(dl_status)
             { label = L("CANCELAR") } } })
       end },
   }
+  -- Knulli Port Hub: itens com download quebrado (core/broken.lua)
+  if C.KNULLI then
+    local B = require("core.broken")
+    rows[#rows + 1] = { kind = "action", label = L("Itens escondidos"),
+      desc = L("Itens do catálogo cujo download não funciona (link quebrado ou pacote inválido) saem da Central e da busca. Aqui dá para ver o motivo, verificar de novo e reativar. O hub também verifica sozinho, 1 vez por dia, e traz de volta o que voltar a funcionar."),
+      value = function() return require("ui.broken_ui").count_label() end,
+      on_a = function() require("ui.broken_ui").open() end }
+    rows[#rows + 1] = { kind = "toggle", label = L("Mostrar itens com download quebrado"),
+      desc = L("Ligado, os itens escondidos voltam a aparecer nas listas e na busca (o download continua falhando até o link ser corrigido)."),
+      get = function() return B.show_all() end,
+      set = function(v)
+        B.set_show_all(v)
+        pcall(require("core.catalog").reapply)
+        App.on_catalog_changed()
+      end }
+  end
+  return rows
 end
 
 -- ---------------------------------------------------------------------------

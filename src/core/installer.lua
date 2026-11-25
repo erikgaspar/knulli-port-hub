@@ -173,6 +173,17 @@ function I.update()
       if m.code == "encrypted" and j.opts and j.opts.password then
         j.error = L("Senha incorreta.")
       end
+      -- Knulli: link quebrado ou pacote invalido -> item escondido (core/broken.lua)
+      if C.KNULLI and not (j.opts and (j.opts.local_file or j.opts.mode == "extract")) then
+        local okb, marked = pcall(require("core.broken").on_install_error, j.port, m.code, m.detail,
+          { size = tonumber(m.size) })
+        if okb and marked then
+          j.error_base = j.error
+          j.broken_note = require("lib.i18n").tr(require("core.broken").hidden_note())
+          j.error = j.error .. j.broken_note
+          j.broken_marked = true
+        elseif not okb then U.log("itens quebrados:", tostring(marked)) end
+      end
     elseif m.t == "cancelled" then
       j.finished, j.result = true, "cancelled"
     end

@@ -39,6 +39,44 @@ if [ "$MODE" = "head" ]; then
   exit 0
 fi
 
+if [ "$MODE" = "probe" ]; then
+  # Checagem leve de um link (itens com download quebrado, core/broken.lua):
+  # pede so os primeiros 1024 bytes (Range) e imprime chave=valor da resposta
+  # final (depois dos redirecionamentos). Servidor que ignora o Range e manda
+  # o arquivo inteiro: --max-filesize corta antes de baixar (rc 63) e os
+  # cabecalhos continuam valendo. Uso: fetch.sh probe URL PASTA_TEMP
+  TMPD="${3:-/tmp}"
+  mkdir -p "$TMPD" 2>/dev/null
+  HDR="$TMPD/probe.$$.h"; BODY="$TMPD/probe.$$.b"
+  rm -f "$HDR" "$BODY"
+  if ! have curl; then echo "RC=127"; exit 0; fi
+  curl -sL --connect-timeout 15 --max-time 25 --max-filesize 1048576 -r 0-1023 -A "$UA" \
+    -D "$HDR" -o "$BODY" "$URL" 2>/dev/null
+  RC=$?
+  if is_tls_error "$RC"; then
+    rm -f "$HDR" "$BODY"
+    curl -sL -k --connect-timeout 15 --max-time 25 --max-filesize 1048576 -r 0-1023 -A "$UA" \
+      -D "$HDR" -o "$BODY" "$URL" 2>/dev/null
+    RC=$?
+  fi
+  echo "RC=$RC"
+  if [ -s "$HDR" ]; then
+    # so o ultimo bloco de cabecalhos (resposta final)
+    tr -d '\r' < "$HDR" | awk '
+      /^HTTP\// { st=$2; ct=""; cl=""; cr=""; et=""; lm=""; next }
+      { k=tolower($0); sub(/:.*/, "", k); v=$0; sub(/^[^:]*:[ \t]*/, "", v)
+        if (k=="content-type") ct=v; else if (k=="content-length") cl=v
+        else if (k=="content-range") cr=v; else if (k=="etag") et=v; else if (k=="last-modified") lm=v }
+      END { print "STATUS=" st; print "CTYPE=" ct; print "LEN=" cl; print "RANGE=" cr; print "ETAG=" et; print "LASTMOD=" lm }'
+  fi
+  if [ -s "$BODY" ]; then
+    echo "SIG=$(head -c 8 "$BODY" | od -An -tx1 | tr -d ' \n')"
+    if head -c 512 "$BODY" | tr 'A-Z' 'a-z' | tr -d ' \t\r\n' | grep -qE '^(<!doctype|<html)'; then echo "HTML=1"; fi
+  fi
+  rm -f "$HDR" "$BODY"
+  exit 0
+fi
+
 if [ "$MODE" = "part" ]; then
   OUTFILE="$3"
   BYTES="${4:-262144}"

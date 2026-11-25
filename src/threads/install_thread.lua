@@ -72,8 +72,10 @@ end
 
 local function fail(code, detail)
   log("ERRO", code, detail or "")
+  -- tamanho do que foi baixado (Knulli: guarda na marca de "pacote invalido")
+  local size = (not job.local_file) and fsize(PART) or nil
   cleanup()
-  send({ t = "error", code = code, detail = detail or "" })
+  send({ t = "error", code = code, detail = detail or "", size = size })
 end
 
 local function cancel_done()

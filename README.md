@@ -120,6 +120,24 @@ Itens com `download_url` e um `id` novo entram como ports normais (mesmo formato
 
 `"hidden": true` num item com o `id` do catálogo oficial **esconde o port no Knulli** (ex.: `ducktales-remastered`, que não abre em nenhum aparelho com o APK do pacote).
 
+#### Downloads quebrados (`hidden` x `broken`)
+
+- `"hidden": true` = **permanente**: o port some no Knulli até alguém tirar o campo (ex.: `ducktales-remastered`).
+- `"broken": {...}` = **download quebrado conhecido**: o port fica escondido, mas o app de cada pessoa reverifica o link (1 vez por dia, só 1 KB com `Range`, sem baixar o jogo) e o traz de volta sozinho quando voltar a funcionar. Também volta se a `download_url` do port mudar no catálogo oficial.
+
+```json
+{ "id": "super-mario-strikers",
+  "broken": { "reason": "link | package", "url": "<url que falhou>", "since": "2026-11-25",
+              "http": 403, "code": "no_script", "size": 888549548, "etag": "\"…\"", "last_modified": "…", "note": "texto" } }
+```
+
+| `reason` | Quando usar | Volta quando |
+|---|---|---|
+| `link` | HTTP 403/404/410 ou página HTML no lugar do arquivo | o link responde 200/206 com algo que não é HTML (assinatura ZIP/RAR/7z/gzip/xz/bz2/tar ou Content-Type de arquivo) |
+| `package` | não é ZIP/RAR/7z/TAR, ou não tem `.sh` na raiz depois de extrair | o arquivo do servidor **mudou**: tamanho diferente de `size` (sem tamanho, `etag` ou `last_modified` diferentes) |
+
+O app também marca sozinho, no aparelho de cada pessoa, quando um download do catálogo falha por esses motivos (falha de rede do próprio aparelho — sem internet, timeout, DNS — nunca marca). Configurações › Downloads › **Itens escondidos** mostra o motivo, a última verificação, **Verificar agora** e **Reativar**; **Mostrar itens com download quebrado** volta a exibir todos. Quando um item volta, a Central avisa "X voltou a ficar disponível".
+
 #### Perfis recomendados (`h700.tune`)
 
 Quem baixa um port com perfil já recebe o jogo ajustado para o RG35XXH. Na instalação/atualização pelo hub o app pergunta uma vez ("Aplicar ajustes recomendados para o RG35XXH?") e depois aplica sozinho (Configurações › Ajustes recomendados). Na página do port, o cartão **Ajustes para o RG35XXH** mostra o que o perfil faz, se está aplicado, e tem **Aplicar** / **Desfazer** (também para ports já instalados).

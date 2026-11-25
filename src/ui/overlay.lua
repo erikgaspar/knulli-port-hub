@@ -477,6 +477,8 @@ function O.on_install_finished(app, j)
     if j.result == "done" then
       app.toast(p.name .. (require("config").OS_MODE and L(" instalado. Ele já está em Meus Ports.")
         or L(" instalado. Reinicie a lista de Ports para ver o jogo.")), "ok")
+    elseif j.result == "error" and j.broken_marked then
+      app.toast(L("Falha ao instalar ") .. p.name .. L(": download quebrado. Item escondido (Configurações > Downloads > Itens escondidos)."), "error")
     elseif j.result == "error" then
       app.toast(L("Falha ao instalar ") .. p.name .. L(". Veja a Central de Downloads."), "error")
     else
@@ -545,6 +547,12 @@ function O.on_install_finished(app, j)
     })
     if j.error_code == "install_failed" then
       app.dialog.body = j.error .. L("\n\nA cópia foi interrompida; reinstale o port para corrigir.")
+    end
+    -- Knulli: download quebrado -> o item foi escondido (core/broken.lua)
+    if j.broken_marked then
+      app.dialog.body = (j.error_base or "") .. require("lib.i18n").tr(L("\n\nNenhum arquivo do port foi alterado.")) .. (j.broken_note or "")
+      app.dialog.buttons = { { label = "OK" },
+        { label = L("ITENS ESCONDIDOS"), fn = function() require("ui.broken_ui").open() end } }
     end
   elseif j.result == "cancelled" then
     app.toast(jo.local_file and L("Extração cancelada. O arquivo compactado foi mantido.")

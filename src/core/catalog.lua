@@ -144,6 +144,14 @@ local function normalize_port(raw, idx, cat_names)
       note = str(raw.h700.note or raw.h700.nota), tested_on = str(raw.h700.tested_on),
       tune = type(raw.h700.tune) == "table" and raw.h700.tune or nil }   -- perfil recomendado (core/tune.lua)
   end
+  -- Knulli Port Hub: download quebrado marcado no catalogo extra (core/broken.lua)
+  if type(raw.broken) == "table" then
+    local b = raw.broken
+    p.broken = { reason = str(b.reason) == "package" and "package" or "link", note = str(b.note),
+      url = build_url(b, { "url" }), size = tonumber(b.size), etag = str(b.etag) ~= "" and str(b.etag) or nil,
+      last_modified = str(b.last_modified) ~= "" and str(b.last_modified) or nil,
+      http = tonumber(b.http), since = str(b.since), code = str(b.code) ~= "" and str(b.code) or nil }
+  end
 
   p.install_check = {}
   if type(raw.install_check) == "table" then
@@ -209,6 +217,24 @@ function Catalog.parse(text)
       res.by_id[p.id] = p
     end
   end
+  -- Knulli Port Hub: itens com download quebrado (marca local ou do catalogo
+  -- extra) saem das listas, da busca e da Central; os instalados pelo hub ficam
+  res.hidden = {}
+  if C.KNULLI then
+    local okb, vis, hid = pcall(function()
+      local Mf = require("core.manifest")
+      return require("core.broken").split(res.ports, function(p) return Mf.data and Mf.data[p.id] ~= nil end)
+    end)
+    if okb then
+      res.hidden = hid
+      if #vis ~= #res.ports then
+        res.ports, res.by_id = vis, {}
+        for _, p in ipairs(vis) do res.by_id[p.id] = p end
+      end
+    else
+      U.log("catalogo: itens quebrados:", tostring(vis))
+    end
+  end
 
   -- categorias: lista oficial das duas areas (sempre presente, mesmo vazia)
   -- + categorias extras que aparecerem no catalogo (na area do port)
@@ -251,6 +277,7 @@ local function apply(res, source)
   Catalog.title = res.title
   Catalog.updated = res.updated
   Catalog.news = res.news or {}
+  Catalog.hidden = res.hidden or {}
   Catalog.source = source
   for _, w in ipairs(res.warnings) do U.log("catalogo:", w) end
   U.log(string.format("catalogo carregado (%s): %d ports, %d categorias", source, #res.ports, #res.categories))
@@ -267,6 +294,8 @@ end
 -- "override"); itens novos com download_url entram como ports normais.
 -- "hidden": true (no item com o id do oficial) tira o port do app no Knulli.
 -- h700.tune = perfil recomendado para o RG35XXH (core/tune.lua).
+-- "broken": {...} = download quebrado conhecido: fica escondido ate a
+-- reverificacao do app (core/broken.lua) ver que voltou ou a URL mudar.
 local EXTRA_CACHE = "catalog_extra_cache.json"
 Catalog.extra = nil
 
@@ -291,6 +320,7 @@ local function merge_extra(list)
         local raw = list[i]
         if e.hidden == true then raw._knulli_hidden = true end
         if type(e.h700) == "table" then raw.h700 = e.h700 end
+        if type(e.broken) == "table" then raw.broken = e.broken end
         if type(e.override) == "table" then for k, v in pairs(e.override) do raw[k] = v end end
       elseif e.download_url or e.url or e.download then
         list[#list + 1] = e
@@ -334,6 +364,9 @@ local function reapply()
     if res then apply(res, Catalog.source ~= "none" and Catalog.source or "cache") end
   end
 end
+
+Catalog.hidden = {}
+Catalog.reapply = reapply
 
 --- Resultado do download do extra: guarda e reaplica o catalogo atual
 function Catalog.on_extra(ok, path)

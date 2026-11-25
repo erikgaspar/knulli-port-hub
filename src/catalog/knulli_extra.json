@@ -42,6 +42,19 @@
             "only_if_missing_or_default": true } ] } }
     },
     {
+      "id": "undertale",
+      "broken": { "reason": "link", "http": 403, "since": "2026-11-25",
+        "url": "https://download1654.mediafire.com/sc1o73a5x6fg9mjd-3HCA5EyuvdXAVj5vP16rVp4BQ9lzx__ZVA2V8MTsa9cQootWtk1uaQyCkEsNT7QdZA54nVskBc0Dc_wXcj_SvcklTd4pMxfOs4PDz2jerupm4cDYVJJu1RIcX7sGoIjZnkIoFARWn05rjVQncOcaySEuJiQ/spcktblvkhgd1fb/Undertale.rar",
+        "note": "Link do MediaFire quebrado: responde 403 (antes mandava a página do site no lugar do arquivo). Volta sozinho quando o link responder com o arquivo ou a URL mudar no catálogo." }
+    },
+    {
+      "id": "super-mario-strikers",
+      "broken": { "reason": "package", "code": "no_script", "since": "2026-11-25",
+        "url": "https://archive.org/download/silent-hill-4-the-room.-7z/super%20Mario%20strikers.rar",
+        "size": 888549548, "etag": "\"6b018f47-34f630ac\"", "last_modified": "Sat, 21 Nov 2026 12:32:07 GMT",
+        "note": "Pacote inválido: o .rar (848 MB) não tem script .sh na raiz do port. Volta sozinho quando o arquivo do servidor mudar ou a URL mudar no catálogo." }
+    },
+    {
       "id": "ducktales-remastered",
       "hidden": true,
       "h700": { "status": "nao_funciona", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
