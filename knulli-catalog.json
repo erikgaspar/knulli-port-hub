@@ -43,8 +43,9 @@
     },
     {
       "id": "super-mario-strikers",
-      "h700": { "status": "testado", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
-        "note": "Abertura confirmada usando o driver Mali do Knulli. Instale pelo Hub 0.5.9.17 ou superior, que corrige o vídeo e evita o atalho duplicado. Sem teste prolongado de desempenho." }
+      "hidden": true,
+      "h700": { "status": "nao_funciona", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
+        "note": "O video abre com Mali, mas o runtime falha ao criar o primeiro save: write(NULL, 16384) retorna EFAULT e o jogo fica preso na verificacao do memory card. Nao formate o cartao. Runtime oficial 1.3.0 tambem falhou ao iniciar no Knulli. Escondido ate corrigir e validar uma partida e o save." }
     },
     {
       "id": "undertale",
