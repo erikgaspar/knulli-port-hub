@@ -42,6 +42,11 @@
             "only_if_missing_or_default": true } ] } }
     },
     {
+      "id": "super-mario-strikers",
+      "h700": { "status": "testado", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
+        "note": "Abertura confirmada usando o driver Mali do Knulli. Instale pelo Hub 0.5.9.17 ou superior, que corrige o vídeo e evita o atalho duplicado. Sem teste prolongado de desempenho." }
+    },
+    {
       "id": "undertale",
       "broken": { "reason": "link", "http": 403, "since": "2026-11-25",
         "url": "https://download1654.mediafire.com/sc1o73a5x6fg9mjd-3HCA5EyuvdXAVj5vP16rVp4BQ9lzx__ZVA2V8MTsa9cQootWtk1uaQyCkEsNT7QdZA54nVskBc0Dc_wXcj_SvcklTd4pMxfOs4PDz2jerupm4cDYVJJu1RIcX7sGoIjZnkIoFARWn05rjVQncOcaySEuJiQ/spcktblvkhgd1fb/Undertale.rar",

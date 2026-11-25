@@ -910,6 +910,15 @@ local function run()
     if check_cancel() then return cancel_done() end
   end
 
+  if job.knulli and job.slug == "super-mario-strikers" then
+    local nested = root .. "/strikers/Super Mario Strikers.sh"
+    local patch = require("core.portpatch")
+    if patch.duplicate_strikers(read_all(root .. "/Super Mario Strikers.sh"), read_all(nested), job.ports_dir) then
+      if not os.remove(nested) then return fail("no_write", nested) end
+      log("atalho duplicado removido do pacote: strikers/Super Mario Strikers.sh")
+    end
+  end
+
   local items = list(root)
   if #items == 0 then return fail("empty_pkg") end
 
@@ -1018,6 +1027,20 @@ local function run()
     end
     installed[#installed + 1] = it.name
     send({ t = "progress", phase = "install", done = i, total = #install })
+  end
+
+  -- Reinstalacao: remove a copia antiga somente se equivale ao launcher atual.
+  if job.knulli and job.slug == "super-mario-strikers" then
+    local nested = job.ports_dir .. "/strikers/Super Mario Strikers.sh"
+    local patch = require("core.portpatch")
+    if patch.duplicate_strikers(read_all(job.ports_dir .. "/Super Mario Strikers.sh"), read_all(nested), job.ports_dir) then
+      local backup = job.script_backup_dir .. "/super-mario-strikers/" .. os.date("%Y%m%d-%H%M%S")
+      if sh("mkdir -p " .. shq(backup) .. " && cp -p " .. shq(nested) .. " " .. shq(backup .. "/nested-launcher.sh")) then
+        os.remove(nested)
+      else
+        log("atalho antigo mantido: nao foi possivel salvar o backup")
+      end
+    end
   end
 
   -- scripts executaveis

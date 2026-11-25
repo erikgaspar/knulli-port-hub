@@ -31,11 +31,22 @@ function M.apply(text, ports_dir, slug)
     return prefix .. ports_dir
   end)
   if slug == "super-mario-strikers" then
+    patched = patched:gsub('SDL3SHIM_SDL2_VIDEODRIVER="kmsdrm"', 'SDL3SHIM_SDL2_VIDEODRIVER="mali"')
+    if not patched:find('export SDL_VIDEO_EGL_DRIVER=', 1, true) then
+      patched = patched:gsub('export SDL_VIDEODRIVER="sdl2"',
+        'export SDL_VIDEO_EGL_DRIVER="/usr/lib/libmali.so"\nexport SDL_VIDEO_GL_DRIVER="/usr/lib/libmali.so"\nexport SDL_VIDEODRIVER="sdl2"', 1)
+    end
     -- O pacote inclui o driver do RK3326. No H700 usa o driver do sistema.
     patched = patched:gsub('\nif %[%s*%-f "%$GAMEDIR/libs%.aarch64/libmali%-bifrost%-g31%-rxp0%-gbm%.so" %]; then',
       '\nif [ -f "/usr/lib/libmali.so" ]; then\n  MALI_BLOB="/usr/lib/libmali.so"\nelif [ -f "$GAMEDIR/libs.aarch64/libmali-bifrost-g31-rxp0-gbm.so" ]; then')
   end
   return patched
+end
+
+function M.duplicate_strikers(root_text, nested_text, ports_dir)
+  if not root_text or not nested_text then return false end
+  return M.apply(root_text, ports_dir, "super-mario-strikers"):gsub("\r\n", "\n")
+    == M.apply(nested_text, ports_dir, "super-mario-strikers"):gsub("\r\n", "\n")
 end
 
 return M

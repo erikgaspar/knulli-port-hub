@@ -96,6 +96,30 @@ assert(broken.mark(port)==nil and broken.data.ok[port.id].by=='installer')
 print('PASS migracao das marcas antigas sem apagar falhas novas')
 
 assert(patch.overlay('other')==nil)
+local video='#!/bin/bash\nexport SDL_VIDEODRIVER="sdl2"\nexport SDL3SHIM_SDL2_VIDEODRIVER="kmsdrm"\n'
+local fixed_video=patch.apply(video,'/userdata/roms/ports','super-mario-strikers')
+assert(fixed_video:find('SDL3SHIM_SDL2_VIDEODRIVER="mali"',1,true))
+assert(fixed_video:find('SDL_VIDEO_EGL_DRIVER="/usr/lib/libmali.so"',1,true))
+assert(patch.apply(fixed_video,'/userdata/roms/ports','super-mario-strikers')==fixed_video)
+assert(patch.duplicate_strikers(fixed_video,video,'/userdata/roms/ports'))
+assert(not patch.duplicate_strikers(fixed_video,video..'echo custom\n','/userdata/roms/ports'))
+-- O pacote real traz o mesmo launcher na raiz e dentro de strikers/.
+local sd=base..'/strikers_duplicate'
+assert(run('mkdir -p '..sd..'/input/strikers '..sd..'/dest/strikers'))
+write(sd..'/input/Super Mario Strikers.sh',video)
+write(sd..'/input/strikers/Super Mario Strikers.sh',video)
+write(sd..'/input/strikers/data','fixture')
+write(sd..'/dest/strikers/Super Mario Strikers.sh',video)
+assert(run('cd '..sd..'/input && zip -qr '..sd..'/fixture.zip .'))
+messages={}
+assert(loadfile(source..'/threads/install_thread.lua'))({
+  name='Strikers',slug='super-mario-strikers',tmp_dir=base..'/work',ports_dir=sd..'/dest',
+  local_file=sd..'/fixture.zip',mode='port',margin=0,protected={},knulli=true,
+  script_backup_dir=base..'/backups',out_channel='out',in_channel='in',passwords={},preapproved=true
+})
+assert(messages[#messages].t=='done')
+assert(not exists(sd..'/dest/strikers/Super Mario Strikers.sh'))
+assert(exists(sd..'/dest/Super Mario Strikers.sh'))
 assert(patch.overlay('ducktales-remastered').size==14502402)
 assert(patch.version_at_least('0.5.9.16','0.5.9'))
 assert(patch.version_at_least('0.5.10','0.5.9'))
