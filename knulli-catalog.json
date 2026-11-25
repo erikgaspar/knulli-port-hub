@@ -50,8 +50,10 @@
     {
       "id": "ducktales-remastered",
       "hidden": true,
-      "h700": { "status": "nao_funciona", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
-        "note": "Escondido no Knulli: o APK 1.0.3 do pacote foi validado e os dados foram preparados. Após ajustar as bibliotecas de 32 bits, o vídeo inicializa em Mali-G31, mas o motor do port ainda fecha com SIGSEGV em wfSfxManager::GetGroup. Abertura não confirmada; precisa de correção no runtime do jogo." }
+      "hidden_until_hub": "0.5.9",
+      "override": { "version": "1.1.11" },
+      "h700": { "status": "testado", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
+        "note": "Abertura confirmada no RG35XXH com runtime oficial 1.1.11. O Hub 0.5.9 ou superior instala o runtime e ajusta o driver de 32 bits automaticamente. A primeira abertura prepara as texturas e pode demorar vários minutos." }
     }
   ]
 ,

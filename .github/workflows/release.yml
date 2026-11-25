@@ -34,6 +34,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y luajit zip unzip >/dev/null
           luajit tests/install_layout.lua src
+          python3 -m unittest discover -s tests -p 'test_compat_overlay.py'
 
       - name: Numero da versao
         id: ver

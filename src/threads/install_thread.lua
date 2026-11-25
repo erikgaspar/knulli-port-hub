@@ -379,6 +379,32 @@ end
 local function md5sum(p)
   return lower(capture("md5sum " .. shq(p) .. " 2>/dev/null"):match("^(%x+)") or "")
 end
+local compat_zip
+local function fetch_compat_overlay()
+  local r = job.compat_overlay
+  if not r then return true end
+  local cache = job.compat_cache_dir
+  if not cache or not sh("mkdir -p " .. shq(cache)) then return nil, "no_write", cache end
+  local dst = cache .. "/" .. r.name
+  local function valid(path)
+    return fsize(path) == r.size and lower(capture("sha256sum " .. shq(path) .. " 2>/dev/null"):match("^(%x+)") or "") == r.sha256
+  end
+  if not valid(dst) then
+    local part = dst .. ".part"
+    local available = free_bytes(cache)
+    if available and available < r.size + job.margin then return nil, "no_space", "" end
+    send({ t = "phase", phase = "download", total = r.size, label = r.label })
+    start_fetch(r.url, part, WORK .. "/fetch_compat.log")
+    local rc = watch_fetch(part, r.size)
+    if rc == "cancel" then return "cancel" end
+    if rc ~= 0 then return nil, "runtime_failed", r.label .. " (rc=" .. tostring(rc) .. ")" end
+    if not valid(part) then os.remove(part); return nil, "checksum", r.label end
+    if not os.rename(part, dst) then return nil, "no_write", dst end
+  end
+  compat_zip = dst
+  return true
+end
+
 local function fetch_runtimes()
   local list = job.runtimes
   if type(list) ~= "table" or #list == 0 then return true end
@@ -512,6 +538,10 @@ local function run()
     if okr == "cancel" then return cancel_done() end
     if not okr then return fail(code, detail) end
   end
+
+  local okc, codec, detailc = fetch_compat_overlay()
+  if okc == "cancel" then return cancel_done() end
+  if not okc then return fail(codec, detailc) end
 
   local expected, got
   if job.local_file then
@@ -868,6 +898,16 @@ local function run()
     else
       break
     end
+  end
+
+  if compat_zip then
+    send({ t = "phase", phase = "extract", label = job.compat_overlay.label })
+    local result = capture("python3 " .. shq(job.compat_helper) .. " " .. shq(compat_zip) .. " "
+      .. shq(root) .. " " .. shq(job.ports_dir) .. " " .. shq(job.compat_overlay.sha256)
+      .. " --backup-dir " .. shq(job.script_backup_dir) .. " 2>&1; echo __PH_COMPAT:$?")
+    if not result:match("__PH_COMPAT:0%s*$") then return fail("runtime_failed", result:sub(1, 800)) end
+    log(result)
+    if check_cancel() then return cancel_done() end
   end
 
   local items = list(root)

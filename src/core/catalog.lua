@@ -318,7 +318,13 @@ local function merge_extra(list)
       local i = idx[str(e.id)]
       if i then
         local raw = list[i]
-        if e.hidden == true then raw._knulli_hidden = true end
+        local hidden = e.hidden == true
+        -- Clientes antigos continuam escondendo o item; os novos ja possuem
+        -- a correcao necessaria para instalar o runtime de compatibilidade.
+        if hidden and e.hidden_until_hub then
+          hidden = not require("core.portpatch").version_at_least(C.VERSION_NUM, str(e.hidden_until_hub))
+        end
+        raw._knulli_hidden = hidden and true or nil
         if type(e.h700) == "table" then raw.h700 = e.h700 end
         if type(e.broken) == "table" then raw.broken = e.broken end
         if type(e.override) == "table" then for k, v in pairs(e.override) do raw[k] = v end end

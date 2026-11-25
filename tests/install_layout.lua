@@ -95,4 +95,10 @@ port.broken={reason='package',code='no_script',url=url,size=888549548,since='202
 assert(broken.mark(port)==nil and broken.data.ok[port.id].by=='installer')
 print('PASS migracao das marcas antigas sem apagar falhas novas')
 
+assert(patch.overlay('other')==nil)
+assert(patch.overlay('ducktales-remastered').size==14502402)
+assert(patch.version_at_least('0.5.9.16','0.5.9'))
+assert(patch.version_at_least('0.5.10','0.5.9'))
+assert(not patch.version_at_least('0.5.8.15','0.5.9'))
+assert(not patch.version_at_least(nil,'0.5.9'))
 print('TODOS OS TESTES PASSARAM')
