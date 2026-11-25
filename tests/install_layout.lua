@@ -101,6 +101,12 @@ local fixed_video=patch.apply(video,'/userdata/roms/ports','super-mario-strikers
 assert(fixed_video:find('SDL3SHIM_SDL2_VIDEODRIVER="mali"',1,true))
 assert(fixed_video:find('SDL_VIDEO_EGL_DRIVER="/usr/lib/libmali.so"',1,true))
 assert(patch.apply(fixed_video,'/userdata/roms/ports','super-mario-strikers')==fixed_video)
+local vmfile=base..'/overcommit-fixture'
+write(vmfile,'0\n')
+local memory_launcher=fixed_video:gsub('/proc/sys/vm/overcommit_memory',vmfile)
+write(base..'/memory-restore.sh',memory_launcher..'test "$(cat '..vmfile..')" = 1 || exit 9\nexit 7\n')
+assert(not run('bash '..base..'/memory-restore.sh'))
+local vm=assert(io.open(vmfile,'rb'));assert(vm:read('*a')=='0\n');vm:close()
 assert(patch.duplicate_strikers(fixed_video,video,'/userdata/roms/ports'))
 assert(not patch.duplicate_strikers(fixed_video,video..'echo custom\n','/userdata/roms/ports'))
 -- O pacote real traz o mesmo launcher na raiz e dentro de strikers/.

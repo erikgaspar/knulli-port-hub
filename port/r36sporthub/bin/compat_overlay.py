@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aplica somente o runtime oficial do DuckTales, preservando dados do dono."""
+"""Aplica runtimes oficiais de compatibilidade, preservando dados do dono."""
 import argparse
 import datetime
 import hashlib
@@ -112,14 +112,50 @@ def apply_overlay(archive, stage, destination, expected_sha, firmware_libs="/usr
     return len(entries)
 
 
+def apply_strikers_overlay(archive, stage, destination, expected_sha, backup_dir=None):
+    if digest(archive) != expected_sha:
+        raise ValueError("SHA-256 do runtime nao confere")
+    game = Path(stage) / "strikers"
+    if not game.is_dir() or game.is_symlink():
+        raise ValueError("Pasta strikers ausente no pacote")
+    target = game / "strikers"
+    if target.is_symlink():
+        raise ValueError("Executavel do port nao pode ser um link")
+    with zipfile.ZipFile(archive) as z:
+        if z.namelist() != ["strikers"] or stat.S_ISLNK(z.getinfo("strikers").external_attr >> 16):
+            raise ValueError("Pacote oficial do Strikers invalido")
+        data = z.read("strikers")
+    if len(data) < 20 or data[:6] != b"\x7fELF\x02\x01" or int.from_bytes(data[18:20], "little") != 183:
+        raise ValueError("O runtime precisa ser um ELF ARM64")
+    if backup_dir:
+        backup = Path(backup_dir) / "super-mario-strikers" / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        for relative in ["strikers/strikers", "Super Mario Strikers.sh"]:
+            original = Path(destination) / relative
+            if original.is_file():
+                saved = backup / relative
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(original, saved)
+    target.write_bytes(data)
+    target.chmod(0o755)
+    (game / "porthub-runtime.json").write_text(json.dumps({
+        "version": "1.3.0", "archive_sha256": expected_sha,
+        "source": "https://github.com/jbcgames/smstrikers-rk3326/releases/tag/v1.3.0",
+    }, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return 1
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("archive"); parser.add_argument("stage"); parser.add_argument("destination"); parser.add_argument("sha256")
     parser.add_argument("--firmware-libs", default="/usr/lib32")
     parser.add_argument("--backup-dir")
+    parser.add_argument("--port", default="ducktales-remastered", choices=["ducktales-remastered", "super-mario-strikers"])
     args = parser.parse_args()
     try:
-        count = apply_overlay(args.archive, args.stage, args.destination, args.sha256, args.firmware_libs, args.backup_dir)
-        print("DuckTales 1.1.11: runtime oficial aplicado (%d arquivos); dados e saves preservados" % count)
+        if args.port == "super-mario-strikers":
+            count = apply_strikers_overlay(args.archive, args.stage, args.destination, args.sha256, args.backup_dir)
+        else:
+            count = apply_overlay(args.archive, args.stage, args.destination, args.sha256, args.firmware_libs, args.backup_dir)
+        print("Runtime oficial aplicado (%d arquivos); dados e saves preservados" % count)
     except (OSError, ValueError, zipfile.BadZipFile) as error:
         parser.exit(1, str(error) + "\n")

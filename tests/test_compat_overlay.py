@@ -97,6 +97,43 @@ class OverlayTests(unittest.TestCase):
             self.apply(self.package())
         self.assertEqual(list(self.game.iterdir()), [])
 
+    def strikers_package(self, extra=False):
+        binary = bytearray(32)
+        binary[:6] = b"\x7fELF\x02\x01"
+        binary[18] = 183
+        with zipfile.ZipFile(self.archive, "w") as z:
+            z.writestr("strikers", binary)
+            if extra:
+                z.writestr("../escape", "bad")
+        return overlay.digest(self.archive), bytes(binary)
+
+    def test_strikers_runtime_backup_and_data_preservation(self):
+        game = self.stage / "strikers"
+        game.mkdir()
+        (game / "strikers").write_bytes(b"old-staged")
+        (game / "owner-data").write_bytes(b"game-data")
+        installed = self.dest / "strikers"
+        installed.mkdir(parents=True)
+        (installed / "strikers").write_bytes(b"old-installed")
+        (installed / "save.gci").write_bytes(b"save")
+        sha, binary = self.strikers_package()
+        backup = self.root / "backup"
+        overlay.apply_strikers_overlay(self.archive, self.stage, self.dest, sha, backup)
+        self.assertEqual((game / "strikers").read_bytes(), binary)
+        self.assertEqual((game / "owner-data").read_bytes(), b"game-data")
+        self.assertEqual((installed / "save.gci").read_bytes(), b"save")
+        self.assertEqual(next(backup.rglob("strikers/strikers")).read_bytes(), b"old-installed")
+
+    def test_strikers_rejects_tampered_and_extra_members(self):
+        (self.stage / "strikers").mkdir()
+        sha, _ = self.strikers_package()
+        with self.assertRaises(ValueError):
+            overlay.apply_strikers_overlay(self.archive, self.stage, self.dest, "0" * 64)
+        sha, _ = self.strikers_package(extra=True)
+        with self.assertRaises(ValueError):
+            overlay.apply_strikers_overlay(self.archive, self.stage, self.dest, sha)
+        self.assertFalse((self.stage / "strikers/strikers").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

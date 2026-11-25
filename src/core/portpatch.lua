@@ -2,6 +2,11 @@
 local M = {}
 
 function M.overlay(slug)
+  if slug == "super-mario-strikers" then
+    return { name = "strikers-1.3.0.zip", label = "Mario Strikers 1.3.0", size = 16035370,
+      url = "https://github.com/jbcgames/smstrikers-rk3326/releases/download/v1.3.0/strikers-arkos-v1.3.0.zip",
+      sha256 = "6a45b8ba193c17867427966a2e12f2adbc34ce894c5c666422ac5ec217f9a239" }
+  end
   if slug ~= "ducktales-remastered" then return nil end
   return { name = "ducktales-1.1.11.zip", label = "DuckTales 1.1.11", size = 14502402,
     url = "https://github.com/NextOs-Ports/nextos-universal-ports/releases/download/ducktales-v1.1.11/ducktales.zip",
@@ -31,6 +36,13 @@ function M.apply(text, ports_dir, slug)
     return prefix .. ports_dir
   end)
   if slug == "super-mario-strikers" then
+    if not patched:find("# PORTHUB_STRIKERS_OVERCOMMIT", 1, true) then
+      local block = '# PORTHUB_STRIKERS_OVERCOMMIT\n'
+        .. 'PORTHUB_OLD_OVERCOMMIT=$(cat /proc/sys/vm/overcommit_memory)\n'
+        .. 'trap \'printf "%s\\n" "$PORTHUB_OLD_OVERCOMMIT" > /proc/sys/vm/overcommit_memory\' EXIT\n'
+        .. "printf '1\\n' > /proc/sys/vm/overcommit_memory\n"
+      patched = patched:gsub("^(#![^\n]*\n)", function(first) return first .. block end, 1)
+    end
     patched = patched:gsub('SDL3SHIM_SDL2_VIDEODRIVER="kmsdrm"', 'SDL3SHIM_SDL2_VIDEODRIVER="mali"')
     if not patched:find('export SDL_VIDEO_EGL_DRIVER=', 1, true) then
       patched = patched:gsub('export SDL_VIDEODRIVER="sdl2"',

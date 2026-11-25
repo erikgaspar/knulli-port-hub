@@ -904,7 +904,7 @@ local function run()
     send({ t = "phase", phase = "extract", label = job.compat_overlay.label })
     local result = capture("python3 " .. shq(job.compat_helper) .. " " .. shq(compat_zip) .. " "
       .. shq(root) .. " " .. shq(job.ports_dir) .. " " .. shq(job.compat_overlay.sha256)
-      .. " --backup-dir " .. shq(job.script_backup_dir) .. " 2>&1; echo __PH_COMPAT:$?")
+      .. " --port " .. shq(job.slug) .. " --backup-dir " .. shq(job.script_backup_dir) .. " 2>&1; echo __PH_COMPAT:$?")
     if not result:match("__PH_COMPAT:0%s*$") then return fail("runtime_failed", result:sub(1, 800)) end
     log(result)
     if check_cancel() then return cancel_done() end
