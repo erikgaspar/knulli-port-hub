@@ -1,6 +1,6 @@
 # Tubo - reproducao com mpv (sem Lua neste build do Knulli: sem ytdl_hook/OSC).
 # O Tubo resolve as URLs com o yt-dlp e passa video + audio separados para o mpv.
-# Controle no video: o proprio mpv le o controle (--input-gamepad, SDL GameController) com mpv/input.conf.
+# Controle no video: gptokeyb (PortMaster) converte o controle em teclas de mpv/input.conf (mpv/tubo.gptk).
 # Modo so audio: o mpv roda sem video e o Tubo controla pela IPC (socket JSON).
 import json
 import os
@@ -40,13 +40,16 @@ def base_args(r, settings, start=0):
 
 def video_cmd(r, settings, start=0):
     a = base_args(r, settings, start)
-    a += ["--vo=sdl", "--fs", "--keepaspect=yes", "--input-gamepad=yes",
+    # --input-gamepad=no: o gamepad do mpv abre o SDL antes e a saida --vo=sdl
+    # falha ("Another component is using SDL already"); o controle vem do gptokeyb
+    a += ["--vo=sdl", "--fs", "--keepaspect=yes", "--input-gamepad=no",
           "--video-sync=audio", "--framedrop=vo",
           "--panscan=%s" % ("1.0" if settings.get("fill") else "0.0"),
           "--osd-playing-msg=${media-title}", "--osd-playing-msg-duration=3000"]
     if r.get("audio_url"):
         a.append("--audio-file=" + r["audio_url"])
-    subs = r.get("subs") or []
+    # legendas so quando ligadas: cada arquivo e mais um pedido ao YouTube (429 Too Many Requests)
+    subs = (r.get("subs") or []) if settings.get("sub_lang") != "off" else []
     for _, u in subs:
         a.append("--sub-file=" + u)
     if subs:
@@ -138,6 +141,7 @@ class Mpv:
         log.info("mpv: %s", " ".join(x if len(x) < 90 else x[:90] + "..." for x in cmd))
         inhibit(True)
         self.logf = open(MPV_LOG, "w")
+        self.keys = gptokeyb_start() if "--vo=sdl" in cmd else None
         self.p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=self.logf, stderr=subprocess.STDOUT)
         self.ipc = Ipc()
         self.pos = 0.0
@@ -193,6 +197,8 @@ class Mpv:
 
     def finish(self):
         rc = self.p.wait()
+        gptokeyb_stop(self.keys)
+        self.keys = None
         inhibit(False)
         self.ipc.close()
         try:
@@ -206,6 +212,42 @@ class Mpv:
         log.info("mpv saiu rc=%s pos=%.0f/%s quadros perdidos vo=%s decoder=%s",
                  rc, self.pos, self.dur, self.drops[0], self.drops[1])
         return rc
+
+
+GPTOKEYB_PATHS = ("/userdata/system/.local/share/PortMaster/gptokeyb",
+                  "/userdata/roms/ports/PortMaster/gptokeyb")
+
+
+def gptokeyb_start():
+    """Controle -> teclado durante o video (mapa em mpv/tubo.gptk)."""
+    if os.environ.get("TUBO_MPV_EXTRA"):
+        return None
+    exe = next((p for p in GPTOKEYB_PATHS if os.access(p, os.X_OK)), None)
+    if not exe:
+        log.warning("gptokeyb nao encontrado: o controle nao funciona no video")
+        return None
+    try:
+        p = subprocess.Popen([exe, "-1", "mpv", "-c", os.path.join(MPVDIR, "tubo.gptk")],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        log.info("gptokeyb iniciado (pid %s)", p.pid)
+        return p
+    except OSError as e:
+        log.warning("gptokeyb: %s", e)
+        return None
+
+
+def gptokeyb_stop(p):
+    if not p:
+        return
+    try:
+        p.terminate()
+        p.wait(2)
+    except Exception:
+        try:
+            p.kill()
+        except Exception:
+            pass
 
 
 PAUSE_FILE = "/var/run/battery-saver/tubo.pause"

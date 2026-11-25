@@ -18,7 +18,7 @@ import player
 from core import (Cancelled, Store, Thumbs, TuboError, YtDlp, fmt_ago, fmt_dur, fmt_size, fmt_views,
                   internet_ok, log)
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 W, H = 640, 480
 BG = (14, 16, 19)
 CARD = (23, 26, 31)
