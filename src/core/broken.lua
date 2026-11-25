@@ -36,6 +36,7 @@ local Prefs = require("core.prefs")
 local B = { data = nil, checking = false, restored = {}, session_checked = false }
 B.FILE = "broken_items.json"
 B.CHECK_EVERY = 24 * 3600
+B.INSTALL_LAYOUT = 2
 
 local function str(v) return type(v) == "string" and v or (type(v) == "number" and tostring(v) or nil) end
 
@@ -103,7 +104,8 @@ function B.on_install_error(p, code, detail, info)
   info = info or {}
   d.items[p.id] = { id = p.id, name = p.name, kind = kind, code = code, http = http,
     detail = U.safe_utf8(tostring(detail or "")):sub(1, 120), url = p.download_url,
-    date = os.date("%Y-%m-%d"), t = os.time(), size = tonumber(info.size), checked = os.time() }
+    date = os.date("%Y-%m-%d"), t = os.time(), size = tonumber(info.size), checked = os.time(),
+    installer_layout = B.INSTALL_LAYOUT }
   d.ok[p.id] = nil
   B.save()
   U.log("download quebrado: " .. p.id .. " escondido (" .. kind .. ", " .. tostring(code) .. " " .. tostring(detail) .. ")")
@@ -148,13 +150,28 @@ function B.mark(p)
   if not (C.KNULLI and p and p.id) then return nil end
   local d = D()
   local m = d.items[p.id]
+  local function fixed_layout(mark)
+    return mark and p.id == "super-mario-strikers" and mark.code == "no_script"
+      and (tonumber(mark.installer_layout) or 0) < B.INSTALL_LAYOUT
+      and mark.url == "https://archive.org/download/silent-hill-4-the-room.-7z/super%20Mario%20strikers.rar"
+      and (not mark.size or mark.size == 888549548)
+  end
+  if fixed_layout(m) then
+    d.items[p.id] = nil; B.dirty = true; m = nil
+    U.log("download quebrado: " .. p.id .. " voltou (estrutura corrigida no instalador)")
+  end
   if m and m.url ~= p.download_url then
     d.items[p.id] = nil
     B.dirty = true
     U.log("download quebrado: " .. p.id .. " voltou (URL do catálogo mudou)")
     m = nil
   end
-  return m or catalog_mark(p)
+  local cm = catalog_mark(p)
+  if fixed_layout(cm) then
+    d.ok[p.id] = { url = p.download_url, since = p.broken.since or "", t = os.time(), by = "installer" }
+    B.dirty = true; cm = nil
+  end
+  return m or cm
 end
 
 --- separa a lista do catalogo: visiveis + escondidos { {port=, mark=} }

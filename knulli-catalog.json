@@ -1,7 +1,7 @@
 {
   "catalog_version": 1,
   "title": "Knulli Port Hub - situação no RG35XXH",
-  "updated": "2026-11-24",
+  "updated": "2026-11-25",
   "about": "Catálogo extra do Knulli Port Hub. Itens com o mesmo id do catálogo oficial (R36S PORT HUB) só acrescentam a situação no RG35XXH em \"h700\". Itens novos com download_url entram como ports normais. status: testado | pesado | nao_funciona.",
   "ports": [
     {
@@ -48,17 +48,10 @@
         "note": "Link do MediaFire quebrado: responde 403 (antes mandava a página do site no lugar do arquivo). Volta sozinho quando o link responder com o arquivo ou a URL mudar no catálogo." }
     },
     {
-      "id": "super-mario-strikers",
-      "broken": { "reason": "package", "code": "no_script", "since": "2026-11-25",
-        "url": "https://archive.org/download/silent-hill-4-the-room.-7z/super%20Mario%20strikers.rar",
-        "size": 888549548, "etag": "\"6b018f47-34f630ac\"", "last_modified": "Sat, 21 Nov 2026 12:32:07 GMT",
-        "note": "Pacote inválido: o .rar (848 MB) não tem script .sh na raiz do port. Volta sozinho quando o arquivo do servidor mudar ou a URL mudar no catálogo." }
-    },
-    {
       "id": "ducktales-remastered",
       "hidden": true,
       "h700": { "status": "nao_funciona", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
-        "note": "Escondido no Knulli: port 32-bit que exige o APK 1.0.3 exato da Google Play; o pacote do catálogo traz um APK que o próprio port recusa (código 23), então não abre." }
+        "note": "Escondido no Knulli: o APK 1.0.3 do pacote foi validado e os dados foram preparados. Após ajustar as bibliotecas de 32 bits, o vídeo inicializa em Mali-G31, mas o motor do port ainda fecha com SIGSEGV em wfSfxManager::GetGroup. Abertura não confirmada; precisa de correção no runtime do jogo." }
     }
   ]
 ,

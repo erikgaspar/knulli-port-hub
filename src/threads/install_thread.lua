@@ -860,15 +860,11 @@ local function run()
   for _ = 1, (job.mode == "extract" and 0 or 4) do
     local items = list(root)
     if #items == 1 and items[1].dir then
-      local n = lower(items[1].name)
       local inner = root .. "/" .. items[1].name
-      if n == "roms" or n == "roms2" or n == "ports" then
-        root = inner
-      elseif not has_script(items) and has_script(list(inner)) then
-        root = inner
-      else
-        break
-      end
+      -- Pode haver varios embrulhos com nomes arbitrarios antes do .sh.
+      -- So desce quando ha uma unica pasta; a validacao do script continua
+      -- obrigatoria e nunca mistura duas arvores de ports diferentes.
+      root = inner
     else
       break
     end
@@ -939,6 +935,30 @@ local function run()
   end
 
   -- 8) instalacao -------------------------------------------------------------
+  -- Adapta somente os launchers que serao instalados. Guarda o original antes
+  -- de alterar; uma falha de backup interrompe antes de copiar o port.
+  if job.knulli and job.mode ~= "extract" then
+    local patch = require("core.portpatch")
+    for _, it in ipairs(install) do
+      if not it.dir and lower(it.name):match("%.sh$") then
+        local path = root .. "/" .. it.name
+        local text = read_all(path)
+        local patched = patch.apply(text, job.ports_dir, job.slug)
+        if text and patched ~= text then
+          local backup = job.script_backup_dir .. "/" .. job.slug .. "/" .. os.date("%Y%m%d-%H%M%S")
+          if not sh("mkdir -p " .. shq(backup) .. " && cp -p " .. shq(path) .. " " .. shq(backup .. "/" .. it.name)) then
+            return fail("no_write", backup)
+          end
+          local f = io.open(path, "wb")
+          if not f then return fail("no_write", path) end
+          local wrote = f:write((patched:gsub("\r\n", "\n")))
+          local closed = f:close()
+          if not wrote or not closed then return fail("no_write", path) end
+          log("launcher adaptado para Knulli:", it.name)
+        end
+      end
+    end
+  end
   send({ t = "phase", phase = "install", total = #install })
   local installed = {}
   for i, it in ipairs(install) do

@@ -103,6 +103,8 @@ function I.start(p, opts)
     margin = C.SPACE_MARGIN,
     protected = C.PROTECTED_NAMES,
     allow_no_script = p.allow_no_script,
+    knulli = C.KNULLI,
+    script_backup_dir = C.KNULLI and "/userdata/system/backups/knulli-port-hub/launchers" or nil,
     bundled_7z = C.APP_DIR .. "/bin/7zzs",
     sevenzip = os.getenv("PORTHUB_7Z") or "",
     preapproved = opts.preapproved and true or false,
