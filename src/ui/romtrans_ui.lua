@@ -10,7 +10,8 @@
 --                            (com traducao conhecida pelo titulo) tem a acao
 --                            "Verificar"; .pbp/.cso/.chd do PSP: "nao suportado"
 --  Botoes (acoes do app): "a" detalhes/traduzir, "x" traduzir (aba 1) ou
---  verificar (aba 3), "y" procurar de novo, "select" desfazer (aba 2) ou pasta
+--  verificar (aba 3) ou "Traducoes aplicadas" (aba 2: backups das originais,
+--  ui/rtapplied_ui.lua), "y" procurar de novo, "select" recuperar a original (aba 2) ou pasta
 --  de trabalho dos jogos de CD (abas 1 e 3). A busca, a traducao, a verificacao
 --  e o desfazer rodam em segundo plano (threads/romtrans_thread.lua); da para
 --  sair da tela. Traduzir e verificar mostram o progresso detalhado e podem
@@ -215,6 +216,7 @@ function to_items(scr)
           .. fmt("traduzido em %s", r.date or "?")
         if x.missing then tag, tagc, sub = L("SEM ARQUIVO"), T.c.red, tr("a ROM traduzida sumiu do cartão") end
         if x.backup_missing then tagc = T.c.orange; sub = sub .. "  •  " .. tr("sem a cópia da original") end
+        if x.backup_deleted then sub = sub .. "  •  " .. tr("backup excluído") end
       else
         tag, tagc = L("JÁ EM PT-BR"), T.c.accent2
         sub = tr("já é o resultado da tradução") .. " — " .. tlabel(x.t)
@@ -412,25 +414,37 @@ local function verify_chd(scr, o)
     end }, { label = L("CANCELAR") } } })
 end
 
-local function do_undo(scr, x, force)
-  run(scr, "undo", { key = x.key, force = force }, function(res)
-    if res.need_force then
-      App.show_dialog({ title = L("A ROM mudou"), kind = "warn",
-        body = tr(res.reason or "") .. "\n\n" .. tr("Desfazer mesmo assim? O arquivo atual é apagado e a original volta."),
-        buttons = { { label = L("DESFAZER"), danger = true, fn = function() do_undo(scr, x, true) end },
-          { label = L("CANCELAR") } }, sel = 2 })
-      return
+--- "Traduções aplicadas" (ui/rtapplied_ui.lua): depois de desfazer/excluir,
+--- atualiza esta lista (excluir: so le o registro de novo; desfazer: procura)
+local function applied_hook(scr)
+  local RA = require("ui.rtapplied_ui")
+  RA.on_change = function(kind)
+    if not state.res then return end
+    if kind == "delete" then
+      local reg = RT.reg_load()
+      for _, y in ipairs(state.res.translated or {}) do
+        local rec = y.key and reg.items[y.key]
+        if rec then y.rec = rec; y.backup_deleted = rec.backup_deleted; y.backup_missing = false end
+      end
+      to_items(scr)
+    elseif not RT.job then
+      scan(scr, false)   -- a ROM original volta para "Para os seus jogos"
     end
-    local note = res.gl_note and ("\n" .. fmt("Lista de jogos não alterada: %s.", tostring(res.gl_note))) or ""
-    App.toast(L("Original devolvida."), "ok")
-    if note ~= "" then App.show_dialog({ title = L("Original devolvida"), kind = "info", body = note }) end
-    scan(scr, false)   -- a ROM original volta para "Para os seus jogos"
-  end)
+  end
+  return RA
+end
+
+--- entrada do registro no formato de RT.applied() (estado e tamanho do backup)
+local function applied_entry(key)
+  for _, a in ipairs((RT.applied())) do if a.key == key then return a end end
 end
 
 local function undo(scr, x)
   if not x or not x.rec then return end
-  if x.backup_missing then
+  local a = applied_entry(x.key)
+  if not a then return end
+  local RA = applied_hook(scr)
+  if a.state == "missing" then
     App.show_dialog({ title = L("Sem a cópia da original"), kind = "warn",
       body = fmt("A cópia da ROM original não está mais em %s. Não dá para desfazer; você pode só tirar o jogo do registro.",
         tostring(x.rec.backup)),
@@ -443,11 +457,7 @@ local function undo(scr, x)
       end }, { label = L("CANCELAR") } }, sel = 2 })
     return
   end
-  App.show_dialog({ title = L("Desfazer a tradução?"), kind = "warn",
-    body = (x.name or x.rel) .. " (" .. sysname(x.sys) .. ")\n\n"
-      .. fmt("A ROM original volta de %s para o lugar da traduzida e o \" (PT-BR)\" sai do nome.", tostring(x.rec.backup)),
-    buttons = { { label = L("DESFAZER"), danger = true, fn = function() do_undo(scr, x, false) end },
-      { label = L("CANCELAR") } }, sel = 2 })
+  RA.restore(a)
 end
 
 local function details(scr, it)
@@ -457,16 +467,8 @@ local function details(scr, it)
     translate(scr, r)
   elseif it.kind == "translated" then
     if r.rec then
-      local rec = r.rec
-      local body = table.concat({
-        tr("Arquivo:") .. " " .. rec.sys .. "/" .. rec.rel .. (rec.inzip and ("  →  " .. rec.inzip) or "")
-          .. (rec.kind == "chd" and ("  →  " .. fmt("faixa %d", rec.track or 1)) or ""),
-        tr("Tradução:") .. " " .. tostring(rec.title) .. " — " .. tlabel(rec),
-        fmt("traduzido em %s", rec.date or "?") .. (rec.header_removed and ("  •  " .. tr("header SMC retirado")) or ""),
-        tr("Original guardada em:") .. " " .. tostring(rec.backup),
-      }, "\n")
-      App.show_dialog({ title = it.text, kind = "info", body = body,
-        buttons = { { label = L("DESFAZER"), danger = true, fn = function() undo(scr, r) end }, { label = L("VOLTAR") } }, sel = 2 })
+      local a = applied_entry(r.key)
+      if a then applied_hook(scr).details(a) end
     else
       App.show_dialog({ title = it.text, kind = "info",
         body = tr("Este arquivo já é o resultado da tradução abaixo (traduzido fora do app):") .. "\n"
@@ -535,7 +537,9 @@ function M.open()
         fn = function(scr, it) translate(scr, it and it.ref) end },
       { key = "x", label = L("Verificar"), enabled = function(scr) return cur_other(scr) ~= nil end,
         fn = function(scr) verify_chd(scr, cur_other(scr)) end },
-      { key = "select", label = L("Desfazer"),
+      { key = "x", label = L("Traduções aplicadas"), enabled = function() return state.tab == 2 end,
+        fn = function(scr) applied_hook(scr).open() end },
+      { key = "select", label = L("Recuperar original"),
         enabled = function(scr) local it = scr.items[scr.sel]; return state.tab == 2 and it ~= nil and it.ref.rec ~= nil end,
         fn = function(scr, it) undo(scr, it and it.ref) end },
       { key = "select", label = L("Pasta de trabalho"), enabled = function() return state.tab ~= 2 end,

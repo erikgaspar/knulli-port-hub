@@ -272,6 +272,9 @@ while true; do
         export XDG_DATA_HOME="$XDG_DATA_HOME_ORIG"
         if [ -n "$PH_LD_SET" ]; then export LD_LIBRARY_PATH="$PH_LD_ORIG"; else unset LD_LIBRARY_PATH; fi
         if [ -n "$PH_SDL_SET" ]; then export SDL_GAMECONTROLLERCONFIG="$PH_SDL_ORIG"; else unset SDL_GAMECONTROLLERCONFIG; fi
+        # o bloco "sempre em modo desempenho" do script (para o EmulationStation)
+        # nao age quando o hub abre o port: o hub ja decidiu o modo
+        export PORTHUB_PERF_WRAP=1
         if [ "$PORT_MODE" = perf ] && [ -f "$GAMEDIR/bin/perf_run.sh" ]; then
           bash "$GAMEDIR/bin/perf_run.sh" "$PORT_SH" "$PORT_ID"
         else

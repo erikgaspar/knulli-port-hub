@@ -124,6 +124,9 @@ function M.detail_lines(p)
       .. ((last.start_iso or "") ~= "" and (" (" .. last.start_iso:sub(1, 16) .. ")") or "")
   end
   if Perf.always(p.id) then out[#out + 1] = tr(L("Este port sempre abre em modo desempenho.")) end
+  if require("core.tune").get(p) then
+    out[#out + 1] = tr(L("Ajustes para o RG35XXH: ")) .. (require("ui.tune_ui").summary(p) or "")
+  end
   local r = H.get(tostring(p.id))
   if r then
     local st = M.STATUS[r.status]
@@ -149,9 +152,9 @@ function M.port_menu(p)
       sub = L("CPU no máximo, GPU a 696 MHz e o menu pausado; mede a temperatura"),
       fn = function() App.launch_port(p, { perf = true }) end }
     buttons[#buttons + 1] = { label = always and L("SEMPRE EM MODO DESEMPENHO: LIGADO") or L("SEMPRE EM MODO DESEMPENHO: DESLIGADO"),
-      sub = L("Vale para o INICIAR desta página"),
+      sub = L("Vale também ao abrir pelo menu do Knulli"),
       fn = function()
-        Perf.set_always(p.id, not always)
+        Perf.set_always_port(p, script, not always)
         App.toast(not always and L("Este port vai abrir sempre em modo desempenho.")
           or L("Este port volta a abrir no modo normal."), "info")
         local cur = App.current()
@@ -161,6 +164,10 @@ function M.port_menu(p)
       buttons[#buttons + 1] = { label = L("INICIAR NO MODO NORMAL"), sub = L("Só desta vez"),
         fn = function() App.launch_port(p, { perf = false }) end }
     end
+  end
+  if require("core.tune").get(p) then
+    local TU = require("ui.tune_ui")
+    buttons[#buttons + 1] = { label = L("AJUSTES PARA O RG35XXH"), sub = TU.summary(p), fn = function() TU.dialog(p) end }
   end
   local last = Perf.last(p.id)
   if last then

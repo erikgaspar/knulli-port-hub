@@ -59,6 +59,7 @@ restore() {
   while IFS='=' read -r k v; do
     case "$k" in
       gov_*) echo "$v" > "/sys/devices/system/cpu/cpufreq/${k#gov_}/scaling_governor" 2>/dev/null ;;
+      max_*) echo "$v" > "/sys/devices/system/cpu/cpufreq/${k#max_}/scaling_max_freq" 2>/dev/null ;;
       gpumin) echo "$v" > "$GPU/min_freq" 2>/dev/null ;;
       es) [ -n "$v" ] && kill -CONT $v 2>/dev/null ;;
       zram) [ "$v" = 1 ] && [ -f "$ZRAM_SVC" ] && LC_ALL=C LANG=C bash "$ZRAM_SVC" stop >/dev/null 2>&1 ;;
@@ -151,6 +152,11 @@ trap 'RC=${RC:-143}; exit 143' TERM INT HUP
 : > "$STATE"
 for p in /sys/devices/system/cpu/cpufreq/policy*; do
   [ -w "$p/scaling_governor" ] || continue
+  # teto da CPU na frequencia de fabrica (cpuinfo_max_freq: 1704 MHz no H700, sem overclock)
+  if [ -w "$p/scaling_max_freq" ] && [ -r "$p/cpuinfo_max_freq" ]; then
+    echo "max_$(basename "$p")=$(cat "$p/scaling_max_freq")" >> "$STATE"
+    cat "$p/cpuinfo_max_freq" > "$p/scaling_max_freq" 2>/dev/null
+  fi
   echo "gov_$(basename "$p")=$(cat "$p/scaling_governor")" >> "$STATE"
   echo performance > "$p/scaling_governor" 2>/dev/null
 done
@@ -174,13 +180,15 @@ setsid bash "$0" --watch $$ < /dev/null > /dev/null 2>&1 &
 WATCH_PID=$!
 
 [ -n "$ES_PIDS" ] && kill -STOP $ES_PIDS 2>/dev/null
-log "perfil ligado: cpu=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null) gpu_min=$(cat $GPU/min_freq 2>/dev/null) es_pausado=${ES_PIDS:-nenhum} temp=$(temp_now)"
+log "perfil ligado: cpu=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null) max=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq 2>/dev/null) gpu_min=$(cat $GPU/min_freq 2>/dev/null) es_pausado=${ES_PIDS:-nenhum} temp=$(temp_now)"
 
 # --- roda o port ----------------------------------------------------------
 # em segundo plano + wait: o trap dispara na hora se este script receber TERM
 # (0<&0 mantem a entrada padrao, que o bash trocaria por /dev/null)
 cd "$PORTS_ROOT" || exit 1
 log "iniciando: $PORT_SH"
+# o bloco "sempre em modo desempenho" do script nao reabre o perf_run
+export PORTHUB_PERF_WRAP=1
 bash "./$PORT_SH" "$@" 0<&0 &
 GAME_PID=$!
 wait "$GAME_PID"

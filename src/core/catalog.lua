@@ -141,7 +141,8 @@ local function normalize_port(raw, idx, cat_names)
   if type(raw.h700) == "table" then
     local st = str(raw.h700.status)
     p.h700 = { status = (st == "pesado" or st == "nao_funciona") and st or "testado",
-      note = str(raw.h700.note or raw.h700.nota), tested_on = str(raw.h700.tested_on) }
+      note = str(raw.h700.note or raw.h700.nota), tested_on = str(raw.h700.tested_on),
+      tune = type(raw.h700.tune) == "table" and raw.h700.tune or nil }   -- perfil recomendado (core/tune.lua)
   end
 
   p.install_check = {}
@@ -264,6 +265,8 @@ end
 --              "tested_on": "RG35XXH / Knulli 2026-05" }
 -- Itens com o mesmo id do oficial so acrescentam "h700" (e o que vier em
 -- "override"); itens novos com download_url entram como ports normais.
+-- "hidden": true (no item com o id do oficial) tira o port do app no Knulli.
+-- h700.tune = perfil recomendado para o RG35XXH (core/tune.lua).
 local EXTRA_CACHE = "catalog_extra_cache.json"
 Catalog.extra = nil
 
@@ -286,6 +289,7 @@ local function merge_extra(list)
       local i = idx[str(e.id)]
       if i then
         local raw = list[i]
+        if e.hidden == true then raw._knulli_hidden = true end
         if type(e.h700) == "table" then raw.h700 = e.h700 end
         if type(e.override) == "table" then for k, v in pairs(e.override) do raw[k] = v end end
       elseif e.download_url or e.url or e.download then
@@ -293,7 +297,12 @@ local function merge_extra(list)
       end
     end
   end
-  return list
+  -- "hidden": true esconde o port do catalogo oficial no Knulli (ex.: nao abre no RG35XXH)
+  local out = {}
+  for _, raw in ipairs(list) do
+    if not (type(raw) == "table" and raw._knulli_hidden) then out[#out + 1] = raw end
+  end
+  return out
 end
 Catalog._merge_extra = merge_extra
 

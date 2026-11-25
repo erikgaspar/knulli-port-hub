@@ -882,6 +882,31 @@ function App.launch_port(p, opts)
 end
 
 --- volta para a tela de onde a ferramenta foi aberta (depois que o launcher reabre o app)
+--- Knulli: "sempre em modo desempenho" vale tambem pelo EmulationStation (bloco
+--- no <Port>.sh): adota blocos feitos a mao e reaplica depois de instalar
+function App.sync_perf_wraps()
+  if not C.KNULLI then return end
+  local ok, err = pcall(function()
+    local by_script
+    require("core.perf").sync_wraps(function(id)
+      local p = Catalog.by_id[id]
+      return p and App.port_script(p) or nil
+    end, function(script)
+      if not by_script then
+        by_script = {}
+        for _, p in ipairs(Catalog.ports) do
+          if not p.builtin and App.status(p) ~= "none" then
+            local s = App.port_script(p)
+            if s and not by_script[s] then by_script[s] = p.id end
+          end
+        end
+      end
+      return by_script[script]
+    end)
+  end)
+  if not ok then U.log("perf.sync_wraps:", tostring(err)) end
+end
+
 local function return_from_tool()
   local req = os.getenv("PORTHUB_RETURN")
   if not req or req == "" or App.returned then return false end
@@ -1055,6 +1080,9 @@ function love.update(dt)
   if was_busy and Installer.job and Installer.job.finished and not App.itest then
     Downloads.on_finished(Installer.job)
     Overlay.on_install_finished(App, Installer.job)
+    App.sync_perf_wraps()
+    -- ajustes recomendados do catalogo (h700.tune): depois que o aviso de instalado fechar
+    if C.KNULLI and Installer.job.result == "done" and Installer.job.port then App.tune_pending = Installer.job.port end
   end
   if not App.itest then
     local nxt = Downloads.pump(can_start_download)
@@ -1098,6 +1126,13 @@ function love.update(dt)
   Ftp.update()
   require("core.shjob").update()
   if C.KNULLI then pcall(require("core.monitor").tick, dt) end
+  if C.KNULLI and not App.perf_synced and (App.t or 0) > 1.5 then App.perf_synced = true; App.sync_perf_wraps() end
+  if App.tune_pending and not App.dialog and not Installer.busy() then
+    local tp = App.tune_pending
+    App.tune_pending = nil
+    local okt, terr = pcall(function() require("ui.tune_ui").after_install(tp) end)
+    if not okt then U.log("tune_ui.after_install:", tostring(terr)) end
+  end
   require("core.updnotice").update(dt)
   App.catalog_retry_update(dt)
   Stream.update()

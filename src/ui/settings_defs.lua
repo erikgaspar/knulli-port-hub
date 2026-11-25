@@ -320,6 +320,12 @@ local battery = {
       desc = L("Reduz a tela de 30 para 20 quadros por segundo e desliga as animações decorativas, diminuindo o uso do processador. Não altera o brilho."),
       get = function() return App.eco end,
       set = function(v) App.eco = v; Prefs.set("eco", v and "1" or "0") end }
+    if C.KNULLI then
+      rows[#rows + 1] = { kind = "toggle", label = L("Ajustes recomendados"),
+        desc = L("Ao instalar ou atualizar um port com perfil para o RG35XXH no catálogo, aplica sozinho: modo desempenho, memória extra e configurações do jogo (só na pasta do port, com cópia antes)."),
+        get = function() return require("core.tune").auto() end,
+        set = function(v) local Tn = require("core.tune"); Tn.set_auto(v); Tn.set_asked() end }
+    end
     return rows
   end,
 }

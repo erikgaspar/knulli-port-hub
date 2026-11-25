@@ -72,7 +72,9 @@ Diminui jogos de CD (PS1, Sega CD, PC Engine CD, Saturn, Dreamcast...) com o `ch
 - **Backup completo dos saves** — saves de todos os sistemas e ports num arquivo (`/userdata/backups/knulli-port-hub`).
 - **Monitor do console** — temperatura, CPU, RAM e bateria ao vivo.
 - **Controle Bluetooth** — procurar, parear e conectar controles.
-- **Modo desempenho por port** — CPU/GPU no máximo, EmulationStation pausado, temperatura e tempo medidos; depois de jogar, **"Como rodou?"** gera **relatórios de compatibilidade** que podem ir para o catálogo extra.
+- **Modo desempenho por port** — CPU/GPU no máximo, EmulationStation pausado, temperatura e tempo medidos; depois de jogar, **"Como rodou?"** gera **relatórios de compatibilidade** que podem ir para o catálogo extra. "Sempre em modo desempenho" vale também ao abrir pelo menu do Knulli.
+- **Memória extra (zram)** — liga/desliga o zram do Knulli, mostra RAM livre, tamanho e uso; avisa antes de abrir port pesado ou que já fechou por falta de memória.
+- **Traduções aplicadas** — cada jogo traduzido pelo app com o backup da ROM original: recuperar a original, marcar como testado, excluir o backup (um ou todos os testados) e o espaço que os backups ocupam.
 - Do original: analisador e verificador do cartão SD, verificador de integridade dos ports, diagnóstico de rede e teste de velocidade, BIOS (download, verificação e instalação em `/userdata/bios`), teste de analógicos e botões, FTP, transmissão da tela pelo navegador e gravação de vídeo.
 
 ### Sistema
@@ -115,6 +117,32 @@ Depois de instalado, o próprio app avisa e instala as versões novas.
 ```
 
 Itens com `download_url` e um `id` novo entram como ports normais (mesmo formato do catálogo oficial, veja [`docs/CATALOGO.md`](docs/CATALOGO.md)). Mudanças só nesses arquivos não geram versão nova do app.
+
+`"hidden": true` num item com o `id` do catálogo oficial **esconde o port no Knulli** (ex.: `ducktales-remastered`, que não abre em nenhum aparelho com o APK do pacote).
+
+#### Perfis recomendados (`h700.tune`)
+
+Quem baixa um port com perfil já recebe o jogo ajustado para o RG35XXH. Na instalação/atualização pelo hub o app pergunta uma vez ("Aplicar ajustes recomendados para o RG35XXH?") e depois aplica sozinho (Configurações › Ajustes recomendados). Na página do port, o cartão **Ajustes para o RG35XXH** mostra o que o perfil faz, se está aplicado, e tem **Aplicar** / **Desfazer** (também para ports já instalados).
+
+```json
+{ "id": "scott-pilgrim-ex",
+  "h700": { "status": "pesado", "note": "…",
+    "tune": { "perf": true, "zram": true, "cpu_max": true,
+      "note": "Sem a memória extra (zram) fecha por falta de memória.",
+      "settings": [ { "file": "savedata/Settings.cfg", "format": "json",
+        "set": { "ResolutionScale": 0.75 }, "default": { "ResolutionScale": 1.0 },
+        "only_if_missing_or_default": true } ] } } }
+```
+
+| Campo | O que faz |
+|---|---|
+| `perf` | "Sempre em modo desempenho": CPU no governador `performance` e no teto de fábrica, GPU a 696 MHz, EmulationStation pausado. Vale também ao abrir pelo menu do Knulli (o hub põe um bloco guardado logo depois do shebang do `<Port>.sh`, marcado por `PORTHUB_PERF_WRAP`; desmarcar tira o bloco). |
+| `zram` | Liga a memória extra (zram) do Knulli, de forma permanente. |
+| `cpu_max` | Informativo: o modo desempenho já põe a CPU no teto de fábrica (`cpuinfo_max_freq`, 1704 MHz no H700, sem overclock). |
+| `note` | Texto curto mostrado no app. |
+| `settings` | Lista de ajustes em arquivos de configuração **do próprio port** (caminho relativo à pasta dele; nada fora dela). `format`: `json` ou `ini` (`section` opcional). Só o valor das chaves em `set` muda; o resto do arquivo fica igual. Com `only_if_missing_or_default` (padrão), só muda se a chave não existe ou ainda está no valor de `default` (o usuário não mexeu). Cópia do arquivo antes em `r36sporthub/conf/tune-backup/<id>/`. Arquivo que o jogo ainda não criou fica pendente. |
+
+**Desfazer** tira o "sempre em modo desempenho" (se foi o perfil que ligou) e volta os valores que o perfil mudou, se o usuário não mudou depois. A memória extra continua ligada.
 
 ### Gerar o pacote
 

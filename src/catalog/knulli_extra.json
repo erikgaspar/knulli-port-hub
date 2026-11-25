@@ -23,6 +23,29 @@
       "id": "super-mario-galaxy-pt-br",
       "h700": { "status": "testado", "tested_on": "RG35XXH / Knulli Scarab 2026-05",
         "note": "Roda. Atenção: o save fica dentro da pasta do port; faça backup antes de apagar ou reinstalar." }
+    },
+    {
+      "id": "castle-of-illusion",
+      "h700": { "status": "testado", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
+        "note": "Roda em modo desempenho: ~22 FPS jogando (GPU 696 MHz + CPU 1,7 GHz, ~52 °C). O carregamento inicial é lento.",
+        "tune": { "perf": true, "zram": true, "cpu_max": true,
+          "note": "Carregamento inicial lento; ~22 FPS no RG35XXH em modo desempenho." } }
+    },
+    {
+      "id": "scott-pilgrim-ex",
+      "h700": { "status": "pesado", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
+        "note": "Fechava por falta de memória sem a memória extra (zram); com zram abre e roda. Ainda sem medição de FPS.",
+        "tune": { "perf": true, "zram": true, "cpu_max": true,
+          "note": "Sem a memória extra (zram) fecha por falta de memória. Resolução interna 0.75 para aliviar a GPU.",
+          "settings": [ { "file": "savedata/Settings.cfg", "format": "json",
+            "set": { "ResolutionScale": 0.75 }, "default": { "ResolutionScale": 1.0 },
+            "only_if_missing_or_default": true } ] } }
+    },
+    {
+      "id": "ducktales-remastered",
+      "hidden": true,
+      "h700": { "status": "nao_funciona", "tested_on": "RG35XXH / Knulli Scarab 2026-11",
+        "note": "Escondido no Knulli: port 32-bit que exige o APK 1.0.3 exato da Google Play; o pacote do catálogo traz um APK que o próprio port recusa (código 23), então não abre." }
     }
   ]
 ,

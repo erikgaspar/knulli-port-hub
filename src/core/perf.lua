@@ -73,6 +73,126 @@ function M.set_always(id, on)
 end
 
 -- ---------------------------------------------------------------------------
+-- "sempre em modo desempenho" tambem pelo EmulationStation: bloco guardado
+-- logo apos o shebang do <Port>.sh (raiz de ports) que reexecuta o script
+-- pelo perf_run.sh. Guardas: PORTHUB_PERF_WRAP (o perf_run e o launcher do
+-- hub exportam) e /tmp/porthub-perf.state (sessao de desempenho ja ativa).
+-- Desmarcar tira o bloco (o arquivo volta exatamente ao que era).
+-- ---------------------------------------------------------------------------
+M.WRAP_MARK = "# Knulli Port Hub: sempre em modo desempenho"
+
+local function script_ok(script)
+  script = tostring(script or "")
+  return script ~= "" and not script:find("/") and not script:find("%.%.") and script:lower():match("%.sh$") ~= nil
+end
+
+function M.wrap_block(script, id)
+  local q = tostring(script):gsub('[\\"$`]', "\\%0")
+  return table.concat({
+    M.WRAP_MARK .. " (CPU/GPU no maximo, zram); desmarque no hub para tirar",
+    "PORTHUB_PERF=" .. M.SCRIPT,
+    'if [ -z "$PORTHUB_PERF_WRAP" ] && [ ! -f /tmp/porthub-perf.state ] && [ -f "$PORTHUB_PERF" ]; then',
+    '  PORTHUB_PERF_WRAP=1 exec bash "$PORTHUB_PERF" "' .. q .. '" ' .. M.safe_id(id) .. ' "$@"',
+    "fi",
+  }, "\n") .. "\n"
+end
+
+--- tira o bloco (qualquer versao: do marcador ate o "fi" depois do exec)
+local function strip_wrap(text)
+  local out, skip, removed = {}, false, false
+  for line in (text .. (text:sub(-1) == "\n" and "" or "\n")):gmatch("([^\n]*)\n") do
+    if not skip and line:find(M.WRAP_MARK, 1, true) == 1 then skip = true; removed = true
+    elseif skip then
+      if line:match("^fi%s*$") then skip = false end
+    else
+      out[#out + 1] = line
+    end
+  end
+  if not removed or skip then return text, false end   -- bloco incompleto: nao mexe
+  local s = table.concat(out, "\n")
+  if text:sub(-1) == "\n" then s = s .. "\n" end
+  return s, true
+end
+M.strip_wrap = strip_wrap
+
+--- o script do port tem o bloco? -> true, id do exec (ou nil)
+function M.has_wrap(script)
+  if not script_ok(script) then return false end
+  local t = U.read_file(C.PORTS_DIR .. "/" .. script) or ""
+  local line = t:match("[^\n]*PORTHUB_PERF_WRAP=1 exec[^\n]*")
+  if not line then return false end
+  return true, line:match('exec bash "[^"]*" ".-" ([%w_%-]+)')
+end
+
+--- poe (on) ou tira o bloco do <script> (nome na raiz de ports). -> ok, erro
+function M.set_wrap(script, id, on)
+  if not C.KNULLI or not script_ok(script) then return nil, "script inválido" end
+  local path = C.PORTS_DIR .. "/" .. script
+  local text = U.read_file(path)
+  if not text then return nil, "script não encontrado" end
+  local base = strip_wrap(text)
+  local new = base
+  if on then
+    local first, rest = base:match("^(#![^\n]*\n)(.*)$")
+    if first then new = first .. M.wrap_block(script, id) .. rest
+    else new = "#!/bin/bash\n" .. M.wrap_block(script, id) .. base end
+  end
+  if new == text then return true end
+  -- grava no mesmo arquivo (mantem dono e permissao de execucao)
+  local f = io.open(path, "wb")
+  if not f then return nil, "não foi possível gravar " .. path end
+  f:write(new)
+  f:close()
+  return true
+end
+
+--- liga/desliga "sempre em modo desempenho" (preferencia + bloco no script)
+function M.set_always_port(p, script, on)
+  M.set_always(p.id, on)
+  if script then
+    local ok, err = M.set_wrap(script, p.id, on)
+    if not ok then U.log("perf: bloco do script", script, err) end
+    return ok, err
+  end
+  return true
+end
+
+--- ao iniciar o app / depois de instalar: adota blocos feitos a mao e
+--- reaplica o bloco nos ports marcados (atualizar/reinstalar troca o .sh)
+--- script_of(id) -> nome do script na raiz de ports (ou nil); id_of_script(script) -> id do port
+function M.sync_wraps(script_of, id_of_script)
+  if not C.KNULLI then return end
+  local set = always_set()
+  local changed = false
+  -- blocos que ja existem (ex.: colocados a mao) viram preferencia
+  local out = U.capture("grep -l 'PORTHUB_PERF_WRAP=1 exec' " .. U.shq(C.PORTS_DIR) .. "/*.sh 2>/dev/null") or ""
+  for path in out:gmatch("[^\n]+") do
+    local script = path:match("([^/]+)$")
+    local has, id = M.has_wrap(script)
+    -- id do port no catalogo do hub (o bloco feito a mao pode usar outro, ex.: castleofillusion)
+    local cid = id_of_script and id_of_script(script)
+    if cid then id = M.safe_id(cid) end
+    if has and id and id ~= "" and not set[id] then set[id] = true; changed = true end
+  end
+  if changed then
+    local list = {}
+    for k in pairs(set) do list[#list + 1] = k end
+    table.sort(list)
+    Prefs.set("perf_always", table.concat(list, ","))
+  end
+  -- marcados sem o bloco (port atualizado/reinstalado): poe de novo
+  if script_of then
+    for id in pairs(set) do
+      local script = script_of(id)
+      if script and not M.has_wrap(script) then
+        local ok, err = M.set_wrap(script, id, true)
+        U.log("perf: bloco reaplicado em", script, ok and "ok" or tostring(err))
+      end
+    end
+  end
+end
+
+-- ---------------------------------------------------------------------------
 -- ultima sessao iniciada pelo hub (para o "Como rodou?")
 -- ---------------------------------------------------------------------------
 function M.mark_launch(id, perf)

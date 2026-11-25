@@ -209,11 +209,19 @@ local function draw_right(self)
     PS.rect(cx, cy, cw, ch, c.surf, 12, 0.85)
     if k > 0 then PS.focus(cx, cy, cw, ch, 12, k) end
     local f1, f2 = PS.font("m", 13), PS.font("r", 12)
-    PS.fit(f1, L("Modo desempenho"), cx + 14, cy + 12, cw - 80, c.text)
+    -- port com perfil recomendado no catalogo (h700.tune): o cartao vira "Ajustes para o RG35XXH"
+    local tsum, tst = nil, nil
+    if C.KNULLI then
+      local okt, a, b = pcall(function() return require("ui.tune_ui").summary(p) end)
+      if okt then tsum, tst = a, b end
+    end
+    PS.fit(f1, tsum and L("Ajustes para o RG35XXH") or L("Modo desempenho"), cx + 14, cy + 12, cw - 80, c.text)
     local last = Perf.last(p.id)
     local sub = last and (PS.tr(L("Última sessão: ")) .. Perf.summary_text(last)) or PS.tr(L("CPU no máximo e GPU a 696 MHz enquanto joga."))
+    if tsum then sub = tsum end
     PS.fit(f2, sub, cx + 14, cy + 14 + f1:getHeight() + 2, cw - 80, c.dim)
     local always = Perf.always(p.id)
+    if tsum then always = tst == "applied" end
     local tx, ty = cx + cw - 14 - 38, cy + ch / 2 - 11
     PS.rect(tx, ty, 38, 22, always and c.accent or c.line, 11)
     PS.color(always and c.bg or c.dim)
@@ -294,6 +302,10 @@ function PD.options(self)
     btns[#btns + 1] = { label = L("Desempenho"), sub = L("Iniciar em modo desempenho, preferência e avaliação"),
       fn = function() require("ui.perf_ui").port_menu(p) end }
   end
+  if C.KNULLI and require("core.tune").get(p) then
+    btns[#btns + 1] = { label = L("Ajustes para o RG35XXH"), sub = require("ui.tune_ui").summary(p),
+      fn = function() require("ui.tune_ui").dialog(p) end }
+  end
   if self.compat then
     btns[#btns + 1] = { label = L("Compatibilidade"), sub = PS.tr(Compat.LABEL[self.compat.status]),
       fn = function() App.push("compat", { port = p }) end }
@@ -354,10 +366,14 @@ function PD.action(self, act)
     else s.desc_scroll = math.min(s.desc_max or 0, (s.desc_scroll or 0) + 1) end
     return true
   elseif act == "a" then
+    if s.focus == "perf" and C.KNULLI and require("core.tune").get(p) then
+      require("ui.tune_ui").dialog(p)
+      return true
+    end
     if s.focus == "perf" then
       local Perf = require("core.perf")
       local on = not Perf.always(p.id)
-      Perf.set_always(p.id, on)
+      Perf.set_always_port(p, App.port_script(p), on)
       App.toast(on and L("Este port vai abrir sempre em modo desempenho.") or L("Modo desempenho automático desligado para este port."), "info")
       return true
     end

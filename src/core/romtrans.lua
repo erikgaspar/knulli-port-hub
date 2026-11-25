@@ -335,6 +335,22 @@ function M.gl_names(sys)
   return t
 end
 
+--- imagens do gamelist de um sistema: rel -> caminho absoluto (image > thumbnail)
+function M.gl_images(sys)
+  local t = {}
+  local base = M.cfg.root .. "/" .. sys
+  local text = U.read_file(base .. "/gamelist.xml")
+  if not text or not text:find("<gameList", 1, true) then return t end
+  for _, e in ipairs(LT.parse(text).entries) do
+    local img = e.path and (LT.get(e, "image") or LT.get(e, "thumbnail"))
+    if img and img ~= "" then
+      if img:sub(1, 1) ~= "/" then img = base .. "/" .. img:gsub("^%./", "") end
+      t[e.path:gsub("^%./", "")] = img
+    end
+  end
+  return t
+end
+
 --- troca o <name> com fn(nome) -> novo. Devolve ok, nome_antes, nome_depois | nil, erro
 function M.gl_rename(sys, rel, fn)
   local file = M.cfg.root .. "/" .. sys .. "/gamelist.xml"
@@ -640,7 +656,8 @@ function M.match(idx, scan, reg)
   for key, rec in pairs(reg.items) do
     translated[#translated + 1] = { key = key, sys = rec.sys, rel = rec.rel, path = rec.path, rec = rec,
       name = rec.gl_name_before or stem(rec.rel or key), missing = not exists(rec.path or ""),
-      backup_missing = not exists(rec.backup or "") }
+      backup_deleted = rec.backup_deleted,
+      backup_missing = not rec.backup_deleted and not exists(rec.backup or "") }
   end
   local function by_name(a, b)
     local x, y = lower(a.name or a.t and a.t.title or ""), lower(b.name or b.t and b.t.title or "")
@@ -880,6 +897,9 @@ function M.op_undo(p)
   if not rec then error("este jogo não está no registro de traduções", 0) end
   if not inside_root(rec.path) then error("caminho fora da pasta de ROMs: " .. tostring(rec.path), 0) end
   M.progress(1, 4, "Conferindo os arquivos")
+  if rec.backup_deleted then
+    error("o backup da ROM original foi excluído em " .. tostring(rec.backup_deleted) .. "; não dá para desfazer", 0)
+  end
   if not exists(rec.backup or "") then error("a cópia da ROM original não está mais em " .. tostring(rec.backup), 0) end
   local bsz = fsize(rec.backup)
   if rec.file_before and rec.file_before.size and bsz ~= rec.file_before.size then
@@ -926,6 +946,96 @@ function M.op_undo(p)
   local sok, serr = M.reg_save(reg)
   M.progress(4, 4, "")
   return { ok = true, gl_note = not glok and gerr or nil, reg_err = not sok and serr or nil }
+end
+
+-------------------------------------------------------------------------------
+-- 4. BACKUPS DAS ORIGINAIS ("Traduções aplicadas")
+--  Cada jogo traduzido tem UM arquivo de backup (rec.backup): a ROM/zip, o .bin
+--  ou .iso da faixa, ou o .chd inteiro. Excluir apaga so esse arquivo e marca
+--  rec.backup_deleted (data) e rec.backup_freed (bytes); o jogo traduzido fica.
+--  Depois disso nao da mais para desfazer. rec.tested = data em que o usuario
+--  marcou que testou e funcionou (para "excluir backups de todos os testados").
+-------------------------------------------------------------------------------
+local function inside_backup(path)
+  local r = M.cfg.backup_dir .. "/"
+  return type(path) == "string" and path:sub(1, #r) == r and not path:find("/%.%./") and not path:find("/%.%.$")
+end
+M.inside_backup = inside_backup
+
+--- estado do backup de um registro: "kept" (guardado), "deleted" (excluido pelo
+--- app) ou "missing" (sumiu). Devolve estado, tamanho (bytes) se guardado
+function M.backup_state(rec)
+  if rec.backup_deleted then return "deleted", nil end
+  local s = rec.backup and fsize(rec.backup)
+  if s then return "kept", s end
+  return "missing", nil
+end
+
+--- lista das traducoes aplicadas pelo app (do registro) e o total dos backups
+--- -> { { key, rec, sys, rel, name, state, size, rom_missing, tested }, ... }, total_bytes
+function M.applied()
+  local reg = M.reg_load()
+  local out, total = {}, 0
+  for key, rec in pairs(reg.items) do
+    local st, size = M.backup_state(rec)
+    if size then total = total + size end
+    out[#out + 1] = { key = key, rec = rec, sys = rec.sys, rel = rec.rel, path = rec.path,
+      name = rec.gl_name_before or stem(rec.rel or key), state = st, size = size,
+      rom_missing = not exists(rec.path or ""), tested = rec.tested }
+  end
+  table.sort(out, function(a, b)
+    local x, y = lower(a.name), lower(b.name)
+    if x ~= y then return x < y end
+    return a.key < b.key
+  end)
+  return out, total
+end
+
+--- marca/desmarca "testei e funcionou"
+function M.set_tested(key, on)
+  local reg = M.reg_load()
+  local rec = reg.items[key or ""]
+  if not rec then return nil, "este jogo não está no registro de traduções" end
+  rec.tested = on and os.date("%Y-%m-%d %H:%M") or nil
+  return M.reg_save(reg)
+end
+
+--- apaga o backup da original de um jogo (o traduzido fica). -> { ok, freed } | nil, erro
+function M.delete_backup(key)
+  local reg = M.reg_load()
+  local rec = reg.items[key or ""]
+  if not rec then return nil, "este jogo não está no registro de traduções" end
+  if rec.backup_deleted then return nil, "o backup deste jogo já foi excluído" end
+  if not inside_backup(rec.backup) then return nil, "o backup está fora da pasta de backups: " .. tostring(rec.backup) end
+  if not exists(rec.path or "") then
+    return nil, "a ROM traduzida não está no cartão; o backup é a única cópia do jogo e não foi apagado"
+  end
+  local size = fsize(rec.backup)
+  if size then
+    local ok, err = os.remove(rec.backup)
+    if not ok or exists(rec.backup) then return nil, "não foi possível apagar " .. rec.backup .. ": " .. tostring(err) end
+    -- pastas que ficaram vazias (ate a pasta de backups, que fica)
+    local d = dir_of(rec.backup)
+    while d ~= M.cfg.backup_dir and inside_backup(d .. "/x") and d ~= "" do
+      if not sh_ok("rmdir " .. U.shq(d)) then break end
+      d = dir_of(d)
+    end
+  end
+  rec.backup_deleted = os.date("%Y-%m-%d %H:%M")
+  rec.backup_freed = size or 0
+  local sok, serr = M.reg_save(reg)
+  if not sok then return nil, serr end
+  return { ok = true, freed = size or 0 }
+end
+
+--- exclui os backups de varios jogos. -> liberado (bytes), quantos, { erros }
+function M.delete_backups(keys)
+  local freed, n, errs = 0, 0, {}
+  for _, k in ipairs(keys or {}) do
+    local r, err = M.delete_backup(k)
+    if r then freed = freed + r.freed; n = n + 1 else errs[#errs + 1] = k .. ": " .. tostring(err) end
+  end
+  return freed, n, errs
 end
 
 --- tira do registro um item cujo arquivo/backup sumiu (sem mexer em arquivos)
